@@ -1,0 +1,228 @@
+/* =========================
+   Grund-Design / Variablen
+   ========================= */
+:root{
+  --bg: #f7f3ee;         /* Seitenhintergrund */
+  --card: #ffffff;       /* Kartenhintergrund */
+  --text: #111827;       /* Haupttext */
+  --muted: #6b7280;      /* abgeschwächter Text */
+  --ring: #e8e2da;       /* zarte Linien */
+  --radius: 18px;        /* Eckenradius für Karten */
+  --shadow: 0 10px 20px rgba(17,24,39,.06);
+
+  /* Kategorien (Farbleiste links am Task) */
+  --orange:#f59e0b;
+  --blue:#3b82f6;
+  --green:#10b981;
+  --red:#ef4444;
+  --purple:#8b5cf6;
+}
+
+/* Reset & Basis */
+*{ box-sizing:border-box }
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color:var(--text);
+  background: var(--bg);
+}
+
+/* Wiederverwendbare Bausteine */
+.card{
+  background:var(--card);
+  border:1px solid var(--ring);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+
+.btn{
+  border:1px solid var(--ring);
+  background:#fff;
+  border-radius:12px;
+  padding:10px 14px;
+  cursor:pointer;
+}
+.btn.primary{ background:var(--green); color:#fff; border-color:transparent; }
+.btn-ico{
+  border:1px solid var(--ring);
+  background:#fff;
+  padding:6px 10px;
+  border-radius:10px;
+  cursor:pointer;
+}
+.muted{ color:var(--muted) }
+.row{ display:grid; grid-auto-flow:column; gap:10px; justify-content:start; align-items:center }
+
+/* =========================
+   Hauptlayout mit CSS Grid
+   ========================= */
+/*
+  .app-grid definiert das Seitenraster.
+  Desktop: 3 Spalten
+  - 1: Aufgaben (320px)
+  - 2: Mitte flexibel
+  - 3: Rechte Spalte (320px)
+*/
+.app-grid{
+  max-width:1200px;
+  margin-inline:auto;
+  padding:16px;
+  display:grid;
+  grid-template-columns: 320px 1fr 320px;
+  grid-template-rows: auto 1fr; /* Header + Inhalt */
+  gap:16px;
+  min-height:100dvh;
+}
+
+/* Header spannt über alle Spalten */
+.header{
+  grid-column: 1 / -1; /* von 1 bis letzte Spalte */
+  padding:14px 18px;
+  display:grid;
+  grid-template-columns: 1fr auto; /* Brand links, Streak rechts */
+  align-items:center;
+}
+.brand h1{ margin:0; letter-spacing:.05em }
+.brand p{ margin:.2rem 0 0; color:var(--muted) }
+.streak{
+  display:grid;
+  grid-auto-flow:column;
+  gap:8px;
+  align-items:center;
+  padding:8px 12px;
+  border:1px solid var(--ring);
+  border-radius:12px;
+  background:#fff7ed; /* leicht orange */
+  font-weight:700;
+}
+
+/* Panels (Karten im Inhalt) */
+.panel{ padding:14px }
+.panel-right{
+  display:grid;
+  gap:16px;
+}
+
+/* =========================
+   Aufgabenliste (Grid)
+   ========================= */
+.task-list{
+  /* Liste selbst: eine Spalte, vertikaler Abstand durch gap */
+  display:grid;
+  gap:10px;
+  list-style:none;
+  margin:0;
+  padding:0;
+  max-height:70vh;      /* scrollt auf Desktop, wenn zu lang */
+  overflow:auto;
+}
+
+/* Jede Aufgaben-Zeile ist ein kleines Grid */
+.task-row{
+  display:grid;
+  grid-template-columns: 8px 24px 1fr auto; /* Farbleiste | Checkbox | Titel | Aktionen */
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  background:#f9fafb;
+  border:1px solid var(--ring);
+  border-radius:14px;
+}
+.colorbar{
+  width:8px; height:100%;
+  border-radius:8px;
+  background:var(--blue); /* Standard, wird per JS überschrieben */
+}
+.task-check{ width:18px; height:18px }
+.task-title{
+  border:none;
+  background:transparent;
+  padding:6px;
+  border-radius:8px;
+  font-size:15px;
+  outline: none;
+}
+.actions{ display:grid; grid-auto-flow:column; gap:8px }
+
+/* =========================
+   Kalender (Grid)
+   ========================= */
+
+.cal-head{
+  display:grid;
+  grid-template-columns: auto 1fr auto; /* Pfeil | Titel | Pfeil */
+  align-items:center;
+  gap:10px;
+  margin-bottom:10px;
+}
+.cal-head h2{ margin:0; text-align:center; }
+
+.cal-grid{
+  /* 7 Spalten = Wochentage */
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap:10px;
+}
+.cal-cell{
+  background:#f3f4f6;
+  border:1px solid var(--ring);
+  border-radius:12px;
+  aspect-ratio: 1 / 1; /* macht die Zellen quadratisch */
+  display:grid;
+  place-items:center;
+  font-weight:600;
+}
+.cal-cell.today{ outline:2px solid var(--blue) }
+.cal-cell.ok{ color:var(--green) }   /* Tage mit erledigter Aufgabe */
+.cal-cell.muted{ opacity:.45 }       /* Tage aus Vormonat/Nachmonat */
+
+/* =========================
+   Formular rechts
+   ========================= */
+textarea{
+  width:100%;
+  resize:vertical;
+  border:1px solid var(--ring);
+  border-radius:12px;
+  padding:10px;
+  background:#f9fafb;
+}
+input[type="text"], select{
+  border:1px solid var(--ring);
+  border-radius:12px;
+  padding:10px;
+  background:#fff;
+  width:100%;
+}
+.add-grid{
+  /* Mini-Grid: Select | Button */
+  display:grid;
+  grid-template-columns: 1fr auto;
+  gap:10px;
+  margin-top:8px;
+}
+
+/* =========================
+   Responsivität
+   ========================= */
+/* Tablet: linke + Mitte nebeneinander, rechts darunter */
+@media (max-width: 1100px){
+  .app-grid{
+    grid-template-columns: 280px 1fr; /* 2 Spalten */
+    grid-template-rows: auto 1fr auto; /* Header | Haupt | Rechte Spalte */
+  }
+  .panel-right{
+    grid-column: 1 / -1; /* über volle Breite unterhalb */
+  }
+}
+
+/* Mobile: alles einspaltig untereinander */
+@media (max-width: 760px){
+  .app-grid{
+    grid-template-columns: 1fr;  /* 1 Spalte */
+    grid-template-rows: auto;    /* fließend */
+  }
+  .header{ grid-template-columns: 1fr; gap:8px }
+  .streak{ justify-self:start }
+  .task-list{ max-height: none } /* auf Mobile nicht scrollen innerhalb */
+}
