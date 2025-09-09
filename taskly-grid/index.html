@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TASKLY – Grid MVP</title>
+
+  <!-- Styles laden -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!--
+    HINWEIS:
+    - .app-grid ist unser zentrales CSS-Grid-Layout.
+    - Desktop: 3 Spalten (links Aufgaben, Mitte Kalender, rechts Journal+Add)
+    - Mobile: 1 Spalte (alles untereinander)
+  -->
+  <div class="app-grid">
+
+    <!-- Kopfzeile (spannt über alle Spalten) -->
+    <header class="card header">
+      <div class="brand">
+        <h1>TASKLY</h1>
+        <p>Deine Erfolge auf einen Blick</p>
+      </div>
+
+      <!-- Streak-Anzeige (einfach nur eine Zahl) -->
+      <div class="streak" title="Tage am Stück mit erledigten Aufgaben">
+        🔥 <span id="streakCount">0</span>
+      </div>
+    </header>
+
+    <!-- Spalte 1: Aufgabenliste (heute) -->
+    <section class="card panel tasks" aria-labelledby="tasksTitle">
+      <h2 id="tasksTitle">Aufgaben für heute</h2>
+
+      <!-- Liste wird per JS gefüllt -->
+      <ul id="taskList" class="task-list" aria-live="polite"></ul>
+    </section>
+
+    <!-- Spalte 2: Kalender -->
+    <section class="card panel calendar" aria-labelledby="calTitle">
+      <div class="cal-head">
+        <button id="prevMonth" class="btn-ico" aria-label="Voriger Monat">‹</button>
+        <h2 id="calTitle"><span id="monthName"></span> <span id="yearNum"></span></h2>
+        <button id="nextMonth" class="btn-ico" aria-label="Nächster Monat">›</button>
+      </div>
+
+      <!--
+        Kalender-Gitter (7 Spalten = Wochentage)
+        Zellen werden per JS erzeugt und hier eingesetzt.
+      -->
+      <div id="calendarGrid" class="cal-grid" role="grid" aria-readonly="true"></div>
+    </section>
+
+    <!-- Spalte 3: Journal + Aufgabe hinzufügen (2 Zeilen mit Grid) -->
+    <aside class="panel-right">
+      <!-- Journal -->
+      <section class="card panel" aria-labelledby="journalTitle">
+        <h3 id="journalTitle">Wie verlief dein Tag?</h3>
+        <textarea id="journalInput" rows="6" placeholder="Kurzer Eintrag ..."></textarea>
+        <div class="row">
+          <button id="saveJournal" class="btn">Speichern</button>
+          <small id="journalSaved" class="muted" aria-live="polite"></small>
+        </div>
+      </section>
+
+      <!-- Aufgabe hinzufügen -->
+      <section class="card panel" aria-labelledby="addTitle">
+        <h3 id="addTitle">Aufgaben hinzufügen</h3>
+        <!--
+          Einfaches Formular:
+          - Titel (Pflichtfeld)
+          - Kategorie-Farbe als Auswahl
+        -->
+        <form id="addForm" class="add-form">
+          <input id="newTaskTitle" type="text" placeholder="Gib hier deine Aufgabe ein..." required />
+          <div class="add-grid"><!-- kleine Grid-Zeile -->
+            <select id="newTaskCategory" aria-label="Kategorie">
+              <option value="orange">Haushalt</option>
+              <option value="blue">Ordnung</option>
+              <option value="green">Gesundheit</option>
+              <option value="red">Studium</option>
+              <option value="purple">Sonstiges</option>
+            </select>
+            <button class="btn primary" type="submit" aria-label="Aufgabe hinzufügen">Hinzufügen</button>
+          </div>
+        </form>
+      </section>
+    </aside>
+  </div>
+
+  <!-- Task-Template (wird per JS geklont) -->
+  <template id="taskItemTemplate">
+    <!--
+      .task-row ist selbst wieder ein Grid:
+      [Farbleiste] [Checkbox] [Titel (editierbar)] [Aktionen]
+      => leichtes, klares Layout ohne Flex
+    -->
+    <li class="task-row">
+      <span class="colorbar" aria-hidden="true"></span>
+      <input class="task-check" type="checkbox" aria-label="Erledigt umschalten" />
+      <input class="task-title" type="text" />
+      <div class="actions">
+        <button class="btn-ico rename" title="Umbenennen" aria-label="Umbenennen">✎</button>
+        <button class="btn-ico delete" title="Löschen" aria-label="Löschen">✕</button>
+      </div>
+    </li>
+  </template>
+
+  <!-- Skript laden -->
+  <script src="app.js"></script>
+</body>
+</html>
