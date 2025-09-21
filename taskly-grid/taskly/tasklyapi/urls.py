@@ -11,5 +11,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/ping/", ping),
     path("api/", include(router.urls)),
-    path("", TemplateView.as_view(template_name="index.html"), name="home"),
+    path("index.html/", TemplateView.as_view(template_name="index.html"), name="home"),
+    path("login.html/", TemplateView.as_view(template_name="login.html"), name="login"),
+    path("register.html/", TemplateView.as_view(template_name="register.html"), name="register"),
 ]

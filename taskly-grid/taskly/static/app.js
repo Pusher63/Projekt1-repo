@@ -1,320 +1,376 @@
 /* =========================================================
-   TASKLY – super einfaches Grid-MVP mit Vanilla JS
+   TASKLY – Aufgabenverwaltung mit Vanilla JS
    ---------------------------------------------------------
-   Ziele:
-   - Sehr leicht verständlich
-   - Viele Kommentare
-   - Wenige, klare Funktionen
-   - Lokale Speicherung (localStorage) für Demo
+   Features:
+   - Aufgabenliste (hinzufügen, abhaken, umbenennen, löschen)
+   - Journal pro Tag
+   - Klickbarer Monatskalender (Auswahl ändert linke Liste)
+   - Mini-Streak (Tage in Folge mit mind. 1 erledigten Task)
+   - Filterfunktion nach Kategorie und Priorität
+   - Speicherung im localStorage (nur Demo)
+   - Aufgabennotizen mit Modal anzeigen
    ========================================================= */
 
 /* -----------------------------
-   Hilfsfunktionen (klein & klar)
+   Kleine Helfer-Funktionen
    ----------------------------- */
-
-// Kürzere Query-Selektoren
-const $  = (sel, ctx = document) => ctx.querySelector(sel);
+const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
-// Daten aus localStorage lesen oder Standardwerte verwenden
+// Funktion zum Laden von Daten aus dem LocalStorage
 function load(key, fallback) {
-  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
-  catch { return fallback; }
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch (e) {
+    console.error(`Fehler beim Laden von ${key} aus LocalStorage:`, e);
+    return fallback;
+  }
 }
 
-// Daten sicher im localStorage speichern
+// Funktion zum Speichern von Daten im LocalStorage
 function save(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.error(`Fehler beim Speichern von ${key} im LocalStorage:`, e);
+  }
 }
 
-// Datum -> "YYYY-MM-DD" (einfacher Schlüssel für heute)
+// Erzeugt einen Schlüssel im Format YYYY-MM-DD
 function toKey(d) {
-  return [d.getFullYear(), String(d.getMonth()+1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
 }
 
 /* -----------------------------
-   Zustände (State)
+   State-Management
    ----------------------------- */
+const tasksByDay = load("tasksByDay", {});
+const journalByDay = load("journalByDay", {});
+let streak = load("streak", 0);
 
-// Aufgaben nach Datum (ein Objekt pro Tag)
-const tasksByDay = load("tasksByDay", {});         // { "2025-08-13": [ {title, done, color}, ... ] }
-const journalByDay = load("journalByDay", {});     // { "2025-08-13": "Text" }
-let streak = load("streak", 0);                    // Zahl: aufeinanderfolgende Tage mit mind. 1 erledigter Aufgabe
-
-// Start mit aktuellem Monat im Kalender
 const today = new Date();
+let selectedDate = new Date();
 let currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
 /* -----------------------------
-   DOM-Elemente referenzieren
+   DOM-Referenzen
    ----------------------------- */
-
-const taskListEl     = $("#taskList");
+const taskListEl = $("#taskList");
 const templateTaskEl = $("#taskItemTemplate");
-const streakEl       = $("#streakCount");
+const streakEl = $("#streakCount");
+const tasksDateLabelEl = $("#tasksDateLabel");
 
 const monthNameEl = $("#monthName");
-const yearNumEl   = $("#yearNum");
-const calGridEl   = $("#calendarGrid");
-
+const yearNumEl = $("#yearNum");
+const calGridEl = $("#calendarGrid");
 const prevBtn = $("#prevMonth");
 const nextBtn = $("#nextMonth");
 
-const addForm         = $("#addForm");
-const newTaskTitleEl  = $("#newTaskTitle");
-const newTaskCatEl    = $("#newTaskCategory");
+const addForm = $("#addForm");
+const newTaskTitleEl = $("#newTaskTitle");
+const taskNotesInputEl = $("#taskNotesInput"); // Neues DOM-Element für Notizen
+const newTaskCatEl = $("#newTaskCategory");
+const newTaskPriorityEl = $("#newTaskPriority");
 
 const journalInputEl = $("#journalInput");
 const saveJournalBtn = $("#saveJournal");
 const journalSavedEl = $("#journalSaved");
 
+const taskFilterEl = $("#taskFilter");
+const taskPriorityFilterEl = $("#taskPriorityFilter");
+const logoutBtn = $("#logoutBtn");
+
+const modal = $("#modal");
+const modalTitle = $("#modalTitle");
+const modalNotes = $("#modalNotes");
+const modalCloseBtn = $("#modalClose");
+
 /* -----------------------------
-   Render-Funktionen
+   Rendering-Funktionen
    ----------------------------- */
 
-// Aktuelles Datum als Schlüssel
-function keyToday() { return toKey(new Date()); }
-
-// Sicherstellen, dass ein Tages-Array existiert
+// Gibt die Aufgaben für einen bestimmten Tag zurück, erstellt das Array, falls es nicht existiert
 function getTasksFor(key) {
-  if (!tasksByDay[key]) tasksByDay[key] = [];
+  if (!tasksByDay[key]) {
+    tasksByDay[key] = [];
+  }
   return tasksByDay[key];
 }
 
-// Aufgabenliste für HEUTE zeichnen
+// Rendert die Aufgabenliste basierend auf dem ausgewählten Datum und Filtern
 function renderTasks() {
-  const key = keyToday();
-  const tasks = getTasksFor(key);
+  const isToday = selectedDate.toDateString() === new Date().toDateString();
+  tasksDateLabelEl.textContent = isToday ? "heute" : selectedDate.toLocaleDateString("de-DE");
 
-  // Liste leeren
+  const key = toKey(selectedDate);
+  const tasks = getTasksFor(key);
+  const categoryFilter = taskFilterEl.value;
+  const priorityFilter = taskPriorityFilterEl.value;
+
+  let filteredTasks = tasks;
+
+  // Filtert nach Kategorie
+  if (categoryFilter !== "all") {
+    filteredTasks = filteredTasks.filter(t => t.color === categoryFilter);
+  }
+
+  // Filtert nach Priorität
+  if (priorityFilter !== "all") {
+    filteredTasks = filteredTasks.filter(t => t.priority === parseInt(priorityFilter, 10));
+  }
+
+  // Sortiert die Aufgaben nach Priorität (von 3 bis 1)
+  filteredTasks.sort((a, b) => b.priority - a.priority);
+
   taskListEl.innerHTML = "";
 
-  // Für jede Aufgabe ein Listenelement aus dem Template erzeugen
-  tasks.forEach((t, index) => {
-    const li = templateTaskEl.content.firstElementChild.cloneNode(true);
+  if (filteredTasks.length === 0) {
+    const message = document.createElement("li");
+    message.className = "muted";
+    message.textContent = "Keine Aufgaben gefunden.";
+    taskListEl.appendChild(message);
+  } else {
+    filteredTasks.forEach((t, index) => {
+      const li = templateTaskEl.content.firstElementChild.cloneNode(true);
 
-    // Farbleiste einfärben (CSS-Variable nutzen)
-    const colorbar = $(".colorbar", li);
-    colorbar.style.background = `var(--${t.color})`;
+      // Setzt die Farbe der Farbleiste und die Priorität
+      $(".colorbar", li).style.background = `var(--${t.color})`;
+      const priorityBadge = $(".priority-badge", li);
+      switch (t.priority) {
+        case 3:
+          priorityBadge.classList.add("high");
+          break;
+        case 2:
+          priorityBadge.classList.add("medium");
+          break;
+        case 1:
+          priorityBadge.classList.add("low");
+          break;
+      }
 
-    // Checkbox setzen
-    const check = $(".task-check", li);
-    check.checked = !!t.done;
+      const check = $(".task-check", li);
+      const title = $(".task-title", li);
+      check.checked = !!t.done;
+      title.value = t.title;
+      title.readOnly = true;
 
-    // Titel setzen
-    const title = $(".task-title", li);
-    title.value = t.title;
-    title.readOnly = true; // Standard: nicht im Edit-Modus
+      // Fügt das title-Attribut hinzu, um den vollständigen Text anzuzeigen
+      title.title = t.title;
 
-    // Aktionen
-    const btnRename = $(".rename", li);
-    const btnDelete = $(".delete", li);
+      // Event-Listener zum Öffnen des Modals
+      if (t.notes) {
+        title.addEventListener("click", () => showNotesModal(t));
+      }
 
-    // Checkbox klick -> erledigt toggeln
-    check.addEventListener("change", () => {
-      t.done = check.checked;
-      save("tasksByDay", tasksByDay);
-      updateStreak();     // Streak neu berechnen
-      renderCalendar();   // Kalender-Farben aktualisieren
-    });
+      check.addEventListener("change", () => {
+        t.done = check.checked;
+        save("tasksByDay", tasksByDay);
+        updateStreak();
+        renderCalendar();
+      });
 
-    // Umbenennen: einmal klicken = editierbar, Enter/Blur = speichern
-    btnRename.addEventListener("click", () => {
-      title.readOnly = !title.readOnly;
-      if (!title.readOnly) {
-        title.focus();
-        title.select();
-      } else {
-        // falls per Button wieder geschlossen wird -> speichern
+      const btnRename = $(".rename", li);
+      btnRename.addEventListener("click", () => {
+        title.readOnly = !title.readOnly;
+        if (!title.readOnly) {
+          title.focus();
+          title.select();
+        } else {
+          t.title = title.value.trim() || t.title;
+          save("tasksByDay", tasksByDay);
+        }
+      });
+      title.addEventListener("keydown", e => { if (e.key === "Enter") title.blur(); });
+      title.addEventListener("blur", () => {
+        title.readOnly = true;
         t.title = title.value.trim() || t.title;
         save("tasksByDay", tasksByDay);
-      }
+      });
+
+      const btnDelete = $(".delete", li);
+      btnDelete.addEventListener("click", () => {
+        // Findet den Index im ungefilterten Array
+        const originalIndex = tasks.findIndex(item => item.title === t.title && item.color === t.color);
+        if (originalIndex > -1) {
+          tasks.splice(originalIndex, 1);
+          save("tasksByDay", tasksByDay);
+          renderTasks();
+          updateStreak();
+          renderCalendar();
+        }
+      });
+
+      taskListEl.appendChild(li);
     });
-    title.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") title.blur(); // Enter beendet das Editieren
-    });
-    title.addEventListener("blur", () => {
-      title.readOnly = true;
-      t.title = title.value.trim() || t.title;
-      save("tasksByDay", tasksByDay);
-    });
-
-    // Löschen
-    btnDelete.addEventListener("click", () => {
-      tasks.splice(index, 1);
-      save("tasksByDay", tasksByDay);
-      renderTasks();
-      updateStreak();
-      renderCalendar();
-    });
-
-    taskListEl.appendChild(li);
-  });
-}
-
-// Kalender für den aktuellen Monat zeichnen
-function renderCalendar() {
-  const y = currentMonth.getFullYear();
-  const m = currentMonth.getMonth();
-
-  // Titel setzen (z.B. "August 2025")
-  const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
-  monthNameEl.textContent = monthNames[m];
-  yearNumEl.textContent   = y;
-
-  // Raster leeren
-  calGridEl.innerHTML = "";
-
-  // Start-Offset (Wochentag der 1. des Monats, 0=So)
-  const firstDay = new Date(y, m, 1);
-  const firstWeekday = (firstDay.getDay() + 6) % 7; // Montag=0, ... Sonntag=6
-
-  // Letzter Tag im Monat
-  const daysInMonth = new Date(y, m + 1, 0).getDate();
-
-  // Wir füllen ein typisches Kalendergitter von 6 Reihen * 7 Spalten = 42 Zellen
-  const totalCells = 42;
-
-  for (let cell = 0; cell < totalCells; cell++) {
-    const cellEl = document.createElement("div");
-    cellEl.className = "cal-cell";
-
-    // Berechnen, welches Datum diese Zelle zeigt
-    const dayNum = cell - firstWeekday + 1; // 1..daysInMonth in Monatsbereich
-    const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
-
-    let d;
-    if (inMonth) {
-      d = new Date(y, m, dayNum);
-      cellEl.textContent = String(dayNum);
-    } else {
-      // Zellen außerhalb des Monats zeigen wir leer/abgeschwächt
-      cellEl.textContent = "";
-      cellEl.classList.add("muted");
-    }
-
-    // Heutiger Tag hervorheben
-    const isToday =
-      inMonth &&
-      d.getFullYear() === today.getFullYear() &&
-      d.getMonth() === today.getMonth() &&
-      d.getDate() === today.getDate();
-
-    if (isToday) cellEl.classList.add("today");
-
-    // Einfache Erfolgsanzeige:
-    // Wenn an dem Tag mind. 1 Aufgabe erledigt wurde -> .ok (grün)
-    if (inMonth) {
-      const key = toKey(d);
-      const list = tasksByDay[key] || [];
-      const anyDone = list.some(t => t.done);
-      if (anyDone) cellEl.classList.add("ok");
-    }
-
-    calGridEl.appendChild(cellEl);
   }
 }
 
-// Streak neu berechnen (sehr einfache Logik):
-// von heute rückwärts zählen, solange jeder Tag >=1 erledigte Aufgabe hatte
+// Funktion zum Anzeigen des Notiz-Modals
+function showNotesModal(task) {
+  modalTitle.textContent = task.title;
+  modalNotes.textContent = task.notes;
+  modal.classList.add("visible");
+}
+
+// Funktion zum Schließen des Notiz-Modals
+function hideNotesModal() {
+  modal.classList.remove("visible");
+}
+
+// Rendert den Kalender für den aktuellen Monat
+function renderCalendar() {
+  const y = currentMonth.getFullYear();
+  const m = currentMonth.getMonth();
+  const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+
+  monthNameEl.textContent = monthNames[m];
+  yearNumEl.textContent = y;
+  calGridEl.innerHTML = "";
+
+  const firstDay = new Date(y, m, 1);
+  const firstWeekday = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+  for (let i = 0; i < firstWeekday; i++) {
+    const cell = document.createElement("div");
+    cell.className = "cal-cell muted";
+    calGridEl.appendChild(cell);
+  }
+
+  for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
+    const cell = document.createElement("button");
+    cell.type = "button";
+    cell.className = "cal-cell";
+    const d = new Date(y, m, dayNum);
+    cell.textContent = String(dayNum);
+    const key = toKey(d);
+
+    if (d.toDateString() === today.toDateString()) cell.classList.add("today");
+    if (d.toDateString() === selectedDate.toDateString()) cell.classList.add("selected");
+
+    if ((tasksByDay[key] || []).some(t => t.done)) {
+      cell.classList.add("ok");
+    }
+
+    cell.addEventListener("click", () => {
+      selectedDate = d;
+      renderCalendar();
+      renderTasks();
+      renderJournal();
+    });
+    calGridEl.appendChild(cell);
+  }
+}
+
+// Rendert den Journal-Eintrag für den ausgewählten Tag
+function renderJournal() {
+  const key = toKey(selectedDate);
+  journalInputEl.value = journalByDay[key] || "";
+}
+
+// Berechnet und aktualisiert den Streak
 function updateStreak() {
   let count = 0;
   const d = new Date(today);
-
   while (true) {
     const key = toKey(d);
-    const list = tasksByDay[key] || [];
-    const anyDone = list.some(t => t.done);
-    if (anyDone) {
+    const tasksForDay = tasksByDay[key] || [];
+    const importantTasks = tasksForDay.filter(t => t.priority === 3);
+
+    if (importantTasks.length > 0 && importantTasks.every(t => t.done)) {
       count++;
-      // einen Tag zurück
       d.setDate(d.getDate() - 1);
     } else {
       break;
     }
   }
-
   streak = count;
   streakEl.textContent = String(streak);
   save("streak", streak);
 }
 
-// Journal für heute laden/anzeigen
-function renderJournal() {
-  const key = keyToday();
-  journalInputEl.value = journalByDay[key] || "";
-}
-
 /* -----------------------------
-   Events (Buttons, Formulare)
+   Event-Listener
    ----------------------------- */
-
-// Monat wechseln
 prevBtn.addEventListener("click", () => {
   currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
   renderCalendar();
 });
+
 nextBtn.addEventListener("click", () => {
   currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
   renderCalendar();
 });
 
-// Aufgabe hinzufügen
 addForm.addEventListener("submit", (e) => {
   e.preventDefault();
-
   const title = newTaskTitleEl.value.trim();
-  const color = newTaskCatEl.value;
-
   if (!title) return;
+  const color = newTaskCatEl.value;
+  const priority = parseInt(newTaskPriorityEl.value, 10);
+  const notes = taskNotesInputEl.value.trim(); // Liest die Notizen aus dem neuen Feld
 
-  const key = keyToday();
-  const tasks = getTasksFor(key);
-
-  tasks.push({ title, done:false, color });
+  const key = toKey(selectedDate);
+  getTasksFor(key).push({ title, done: false, color, priority, notes });
   save("tasksByDay", tasksByDay);
-
-  // Formular zurücksetzen
   newTaskTitleEl.value = "";
+  taskNotesInputEl.value = ""; // Leert das Notizfeld
   newTaskCatEl.value = "orange";
-
-  // UI aktualisieren
+  newTaskPriorityEl.value = "2";
   renderTasks();
   renderCalendar();
 });
 
-// Journal speichern
 saveJournalBtn.addEventListener("click", () => {
-  const key = keyToday();
+  const key = toKey(selectedDate);
   journalByDay[key] = journalInputEl.value.trim();
   save("journalByDay", journalByDay);
-
   journalSavedEl.textContent = "Gespeichert ✔";
   setTimeout(() => journalSavedEl.textContent = "", 1200);
 });
 
-/* -----------------------------
-   Initiale Demo-Daten (nur beim ersten Start)
-   ----------------------------- */
+// Event-Listener für beide Filter
+taskFilterEl.addEventListener("change", renderTasks);
+taskPriorityFilterEl.addEventListener("change", renderTasks);
 
-(function seedIfEmpty(){
-  const key = keyToday();
+logoutBtn.addEventListener("click", () => {
+  localStorage.removeItem("userEmail");
+  location.href = "login.html";
+});
+
+// Event-Listener für das Modal
+modalCloseBtn.addEventListener("click", hideNotesModal);
+modal.addEventListener("click", (e) => {
+  if (e.target === modal) {
+    hideNotesModal();
+  }
+});
+
+/* -----------------------------
+   Demo-Seed (nur beim 1. Start)
+   ----------------------------- */
+(function seedIfEmpty() {
+  const key = toKey(today);
   if (!tasksByDay[key] || tasksByDay[key].length === 0) {
     tasksByDay[key] = [
-      { title:"Spülmaschine ausräumen", done:false, color:"orange" },
-      { title:"Tisch aufräumen",        done:false, color:"blue"   },
-      { title:"Fenster putzen",         done:false, color:"orange" },
-      { title:"Für die Uni lernen",     done:false, color:"red"    },
+      { title: "Projektplanung", done: false, color: "red", priority: 3, notes: "Meilensteine für das nächste Projekt definieren und die Aufgaben aufteilen." },
+      { title: "E-Mails sortieren", done: false, color: "blue", priority: 2, notes: "Posteingang aufräumen und wichtige Nachrichten archivieren." },
+      { title: "Rechnungen bezahlen", done: false, color: "orange", priority: 3, notes: "Alle ausstehenden Rechnungen prüfen und fristgerecht begleichen." },
+      { title: "Wocheneinkauf erledigen", done: false, color: "orange", priority: 1, notes: "Einkaufsliste erstellen und die Besorgungen erledigen." },
+      { title: "1 Stunde Sport", done: true, color: "green", priority: 3, notes: "Zum Fitnessstudio gehen und das geplante Workout absolvieren." },
+      { title: "Lesen", done: false, color: "purple", priority: 1, notes: "Im aktuellen Roman weiterlesen." }
     ];
     save("tasksByDay", tasksByDay);
   }
 })();
 
-/* -----------------------------
-   Erste Darstellung der Oberfläche
-   ----------------------------- */
+// Start-Funktion
+function init() {
+  renderTasks();
+  renderCalendar();
+  renderJournal();
+  updateStreak();
+}
 
-renderTasks();
-renderCalendar();
-renderJournal();
-updateStreak();
+init();

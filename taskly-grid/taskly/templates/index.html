@@ -1,114 +1,128 @@
+{% load static %}
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TASKLY – Grid MVP</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TASKLY – Deine Aufgaben-App</title>
+    <link rel="stylesheet" href="{% static 'styles.css' %}">
 
-  <!-- Styles laden -->
-  <link rel="stylesheet" href="../static/styles.css" />
 </head>
 <body>
-  <!--
-    HINWEIS:
-    - .app-grid ist unser zentrales CSS-Grid-Layout.
-    - Desktop: 3 Spalten (links Aufgaben, Mitte Kalender, rechts Journal+Add)
-    - Mobile: 1 Spalte (alles untereinander)
-  -->
-  <div class="app-grid">
 
-    <!-- Kopfzeile (spannt über alle Spalten) -->
-    <header class="card header">
-      <div class="brand">
-        <h1>TASKLY</h1>
-        <p>Deine Erfolge auf einen Blick</p>
-      </div>
+    <div class="app-grid">
 
-      <!-- Streak-Anzeige (einfach nur eine Zahl) -->
-      <div class="streak" title="Tage am Stück mit erledigten Aufgaben">
-        🔥 <span id="streakCount">0</span>
-      </div>
-    </header>
+        <header class="card header">
+            <div class="header-left">
+                <div class="streak" title="Tage am Stück mit erledigten Aufgaben">
+                    🔥 <span id="streakCount">0</span>
+                </div>
+            </div>
+            <div class="brand">
+                <div class="brand-top">
+                    <img src="{% static 'logo.jpg' %}" alt="TASKLY Logo" class="logo">
+                    <h1>TASKLY</h1>
+                </div>
+                <p>Deine Erfolge auf einen Blick</p>
+            </div>
+            <div class="header-right">
+                <button class="btn" id="logoutBtn">Logout</button>
+            </div>
+        </header>
 
-    <!-- Spalte 1: Aufgabenliste (heute) -->
-    <section class="card panel tasks" aria-labelledby="tasksTitle">
-      <h2 id="tasksTitle">Aufgaben für heute</h2>
+        <section class="card panel tasks" aria-labelledby="tasksTitle">
+            <div class="tasks-header">
+                <h2 id="tasksTitle">Aufgaben für <span id="tasksDateLabel">heute</span></h2>
+                <div class="tasks-filters">
+                    <select id="taskPriorityFilter" aria-label="Priorität filtern">
+                        <option value="all">Alle Prioritäten</option>
+                        <option value="3">Wichtig</option>
+                        <option value="2">Normal</option>
+                        <option value="1">Niedrig</option>
+                    </select>
+                    <select id="taskFilter" aria-label="Aufgaben filtern">
+                        <option value="all">Alle Kategorien</option>
+                        <option value="orange">Haushalt</option>
+                        <option value="blue">Ordnung</option>
+                        <option value="green">Gesundheit</option>
+                        <option value="red">Studium</option>
+                        <option value="purple">Sonstiges</option>
+                    </select>
+                </div>
+            </div>
+            <ul id="taskList" class="task-list" aria-live="polite"></ul>
+        </section>
 
-      <!-- Liste wird per JS gefüllt -->
-      <ul id="taskList" class="task-list" aria-live="polite"></ul>
-    </section>
+        <section class="card panel calendar" aria-labelledby="calTitle">
+            <div class="cal-head">
+                <button id="prevMonth" class="btn-ico" aria-label="Voriger Monat">‹</button>
+                <h2 id="calTitle"><span id="monthName"></span> <span id="yearNum"></span></h2>
+                <button id="nextMonth" class="btn-ico" aria-label="Nächster Monat">›</button>
+            </div>
+            <div class="cal-weekdays">
+                <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+            </div>
+            <div id="calendarGrid" class="cal-grid" role="grid" aria-readonly="true"></div>
+        </section>
 
-    <!-- Spalte 2: Kalender -->
-    <section class="card panel calendar" aria-labelledby="calTitle">
-      <div class="cal-head">
-        <button id="prevMonth" class="btn-ico" aria-label="Voriger Monat">‹</button>
-        <h2 id="calTitle"><span id="monthName"></span> <span id="yearNum"></span></h2>
-        <button id="nextMonth" class="btn-ico" aria-label="Nächster Monat">›</button>
-      </div>
+        <aside class="panel-right">
+            <section class="card panel" aria-labelledby="journalTitle">
+                <h3 id="journalTitle">Wie verlief dein Tag?</h3>
+                <textarea id="journalInput" rows="6" placeholder="Kurzer Eintrag ..."></textarea>
+                <div class="row">
+                    <button id="saveJournal" class="btn primary">Speichern</button>
+                    <small id="journalSaved" class="muted" aria-live="polite"></small>
+                </div>
+            </section>
 
-      <!--
-        Kalender-Gitter (7 Spalten = Wochentage)
-        Zellen werden per JS erzeugt und hier eingesetzt.
-      -->
-      <div id="calendarGrid" class="cal-grid" role="grid" aria-readonly="true"></div>
-    </section>
+            <section class="card panel" aria-labelledby="addTitle">
+                <h3 id="addTitle">Aufgabe hinzufügen</h3>
+                <form id="addForm" class="add-form">
+                    <input id="newTaskTitle" type="text" placeholder="Gib hier deine Aufgabe ein..." required />
+                    <textarea id="taskNotesInput" rows="3" placeholder="Zusätzliche Notizen..."></textarea>
+                    <div class="add-grid">
+                        <select id="newTaskPriority" aria-label="Priorität">
+                            <option value="3">Wichtig</option>
+                            <option value="2" selected>Normal</option>
+                            <option value="1">Niedrig</option>
+                        </select>
+                        <select id="newTaskCategory" aria-label="Kategorie">
+                            <option value="orange">Haushalt</option>
+                            <option value="blue">Ordnung</option>
+                            <option value="green">Gesundheit</option>
+                            <option value="red">Studium</option>
+                            <option value="purple">Sonstiges</option>
+                        </select>
+                        <button class="btn primary" type="submit" aria-label="Aufgabe hinzufügen">Hinzufügen</button>
+                    </div>
+                </form>
+            </section>
+        </aside>
+    </div>
 
-    <!-- Spalte 3: Journal + Aufgabe hinzufügen (2 Zeilen mit Grid) -->
-    <aside class="panel-right">
-      <!-- Journal -->
-      <section class="card panel" aria-labelledby="journalTitle">
-        <h3 id="journalTitle">Wie verlief dein Tag?</h3>
-        <textarea id="journalInput" rows="6" placeholder="Kurzer Eintrag ..."></textarea>
-        <div class="row">
-          <button id="saveJournal" class="btn">Speichern</button>
-          <small id="journalSaved" class="muted" aria-live="polite"></small>
+    <template id="taskItemTemplate">
+        <li class="task-row">
+            <span class="priority-badge" aria-hidden="true"></span>
+            <span class="colorbar" aria-hidden="true"></span>
+            <input class="task-check" type="checkbox" aria-label="Erledigt umschalten" />
+            <input class="task-title" type="text" />
+            <div class="actions">
+                <button class="btn-ico rename" title="Umbenennen" aria-label="Umbenennen">✎</button>
+                <button class="btn-ico delete" title="Löschen" aria-label="Löschen">✕</button>
+            </div>
+        </li>
+    </template>
+
+    <div id="modal" class="modal-bg">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3 id="modalTitle">Aufgabendetails</h3>
+                <button id="modalClose" class="btn-ico">✕</button>
+            </div>
+            <p id="modalNotes"></p>
         </div>
-      </section>
+    </div>
 
-      <!-- Aufgabe hinzufügen -->
-      <section class="card panel" aria-labelledby="addTitle">
-        <h3 id="addTitle">Aufgaben hinzufügen</h3>
-        <!--
-          Einfaches Formular:
-          - Titel (Pflichtfeld)
-          - Kategorie-Farbe als Auswahl
-        -->
-        <form id="addForm" class="add-form">
-          <input id="newTaskTitle" type="text" placeholder="Gib hier deine Aufgabe ein..." required />
-          <div class="add-grid"><!-- kleine Grid-Zeile -->
-            <select id="newTaskCategory" aria-label="Kategorie">
-              <option value="orange">Haushalt</option>
-              <option value="blue">Ordnung</option>
-              <option value="green">Gesundheit</option>
-              <option value="red">Studium</option>
-              <option value="purple">Sonstiges</option>
-            </select>
-            <button class="btn primary" type="submit" aria-label="Aufgabe hinzufügen">Hinzufügen</button>
-          </div>
-        </form>
-      </section>
-    </aside>
-  </div>
-
-  <!-- Task-Template (wird per JS geklont) -->
-  <template id="taskItemTemplate">
-    <!--
-      .task-row ist selbst wieder ein Grid:
-      [Farbleiste] [Checkbox] [Titel (editierbar)] [Aktionen]
-      => leichtes, klares Layout ohne Flex
-    -->
-    <li class="task-row">
-      <span class="colorbar" aria-hidden="true"></span>
-      <input class="task-check" type="checkbox" aria-label="Erledigt umschalten" />
-      <input class="task-title" type="text" />
-      <div class="actions">
-        <button class="btn-ico rename" title="Umbenennen" aria-label="Umbenennen">✎</button>
-        <button class="btn-ico delete" title="Löschen" aria-label="Löschen">✕</button>
-      </div>
-    </li>
-  </template>
-
-  <!-- Skript laden -->
-  <script src="../static/app.js"></script>
+    <script src="{% static 'app.js' %}"></script>
 </body>
 </html>

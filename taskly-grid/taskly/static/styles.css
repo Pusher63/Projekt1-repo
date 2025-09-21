@@ -1,228 +1,541 @@
 /* =========================
    Grund-Design / Variablen
    ========================= */
-:root{
-  --bg: #f7f3ee;         /* Seitenhintergrund */
-  --card: #ffffff;       /* Kartenhintergrund */
-  --text: #111827;       /* Haupttext */
-  --muted: #6b7280;      /* abgeschwächter Text */
-  --ring: #e8e2da;       /* zarte Linien */
-  --radius: 18px;        /* Eckenradius für Karten */
-  --shadow: 0 10px 20px rgba(17,24,39,.06);
+:root {
+  --bg: #f7f3ee;
+  --card: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --ring: #e8e2da;
+  --radius: 18px;
+  --shadow: 0 10px 20px rgba(17, 24, 39, .06);
 
-  /* Kategorien (Farbleiste links am Task) */
-  --orange:#f59e0b;
-  --blue:#3b82f6;
-  --green:#10b981;
-  --red:#ef4444;
-  --purple:#8b5cf6;
+  /* Kategorien */
+  --orange: #f59e0b;
+  --blue: #3b82f6;
+  --green: #10b981;
+  --red: #ef4444;
+  --purple: #8b5cf6;
 }
 
 /* Reset & Basis */
-*{ box-sizing:border-box }
-body{
-  margin:0;
+*,
+*::before,
+*::after {
+  box-sizing: border-box
+}
+
+body {
+  margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  color:var(--text);
+  color: var(--text);
   background: var(--bg);
 }
 
 /* Wiederverwendbare Bausteine */
-.card{
-  background:var(--card);
-  border:1px solid var(--ring);
-  border-radius:var(--radius);
-  box-shadow:var(--shadow);
+.card {
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
-.btn{
-  border:1px solid var(--ring);
-  background:#fff;
-  border-radius:12px;
-  padding:10px 14px;
-  cursor:pointer;
+.btn {
+  border: 1px solid var(--ring);
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: transform .05s ease;
+  font-weight: 600;
 }
-.btn.primary{ background:var(--green); color:#fff; border-color:transparent; }
-.btn-ico{
-  border:1px solid var(--ring);
-  background:#fff;
-  padding:6px 10px;
-  border-radius:10px;
-  cursor:pointer;
+
+.btn:active {
+  transform: scale(.98)
 }
-.muted{ color:var(--muted) }
-.row{ display:grid; grid-auto-flow:column; gap:10px; justify-content:start; align-items:center }
+
+.btn.primary {
+  background: var(--green);
+  color: #fff;
+  border-color: transparent;
+}
+
+.btn-ico {
+  border: 1px solid var(--ring);
+  background: #fff;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--muted)
+}
+
+.small {
+  font-size: .9rem
+}
+
+.row {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 10px;
+  justify-content: start;
+  align-items: center
+}
 
 /* =========================
    Hauptlayout mit CSS Grid
    ========================= */
-/*
-  .app-grid definiert das Seitenraster.
-  Desktop: 3 Spalten
-  - 1: Aufgaben (320px)
-  - 2: Mitte flexibel
-  - 3: Rechte Spalte (320px)
-*/
-.app-grid{
-  max-width:1200px;
-  margin-inline:auto;
-  padding:16px;
-  display:grid;
+.app-grid {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 16px;
+  display: grid;
   grid-template-columns: 320px 1fr 320px;
-  grid-template-rows: auto 1fr; /* Header + Inhalt */
-  gap:16px;
-  min-height:100dvh;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
+  min-height: 100vh;
 }
 
-/* Header spannt über alle Spalten */
-.header{
-  grid-column: 1 / -1; /* von 1 bis letzte Spalte */
-  padding:14px 18px;
-  display:grid;
-  grid-template-columns: 1fr auto; /* Brand links, Streak rechts */
-  align-items:center;
-}
-.brand h1{ margin:0; letter-spacing:.05em }
-.brand p{ margin:.2rem 0 0; color:var(--muted) }
-.streak{
-  display:grid;
-  grid-auto-flow:column;
-  gap:8px;
-  align-items:center;
-  padding:8px 12px;
-  border:1px solid var(--ring);
-  border-radius:12px;
-  background:#fff7ed; /* leicht orange */
-  font-weight:700;
+.header {
+  grid-column: 1 / -1;
+  padding: 14px 18px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
 }
 
-/* Panels (Karten im Inhalt) */
-.panel{ padding:14px }
-.panel-right{
-  display:grid;
-  gap:16px;
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  grid-column: 2;
+}
+
+.brand-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand h1 {
+  margin: 0;
+  letter-spacing: .05em;
+}
+
+.brand p {
+  margin: .2rem 0 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.logo {
+  height: 40px;
+  width: auto;
+}
+
+.header-left {
+  grid-column: 1;
+  justify-self: start;
+}
+
+.header-right {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.streak {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--ring);
+  border-radius: 12px;
+  background: #fff7ed;
+  font-weight: 700;
+}
+
+/* Panels */
+.panel {
+  padding: 14px
+}
+
+.panel-right {
+  display: grid;
+  gap: 16px
 }
 
 /* =========================
-   Aufgabenliste (Grid)
+   Aufgabenliste
    ========================= */
-.task-list{
-  /* Liste selbst: eine Spalte, vertikaler Abstand durch gap */
-  display:grid;
-  gap:10px;
-  list-style:none;
-  margin:0;
-  padding:0;
-  max-height:70vh;      /* scrollt auf Desktop, wenn zu lang */
-  overflow:auto;
+.tasks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-/* Jede Aufgaben-Zeile ist ein kleines Grid */
-.task-row{
-  display:grid;
-  grid-template-columns: 8px 24px 1fr auto; /* Farbleiste | Checkbox | Titel | Aktionen */
-  align-items:center;
-  gap:10px;
-  padding:10px 12px;
-  background:#f9fafb;
-  border:1px solid var(--ring);
-  border-radius:14px;
+.tasks-header h2 {
+  margin: 0;
 }
-.colorbar{
-  width:8px; height:100%;
-  border-radius:8px;
-  background:var(--blue); /* Standard, wird per JS überschrieben */
+
+.tasks-filters {
+  display: flex;
+  gap: 8px;
 }
-.task-check{ width:18px; height:18px }
-.task-title{
-  border:none;
-  background:transparent;
-  padding:6px;
-  border-radius:8px;
-  font-size:15px;
+
+.task-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.task-row {
+  display: grid;
+  grid-template-columns: auto 8px 24px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px solid var(--ring);
+  border-radius: 14px;
+}
+
+.colorbar {
+  width: 8px;
+  height: 100%;
+  border-radius: 8px;
+}
+
+.task-check {
+  width: 18px;
+  height: 18px
+}
+
+.task-title {
+  border: none;
+  background: transparent;
+  padding: 6px;
+  border-radius: 8px;
+  font-size: 15px;
   outline: none;
 }
-.actions{ display:grid; grid-auto-flow:column; gap:8px }
+
+.actions {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 8px
+}
+
+/* Prioritäts-Badges hinzufügen */
+.priority-badge {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.priority-badge.high {
+  background-color: var(--red);
+}
+
+.priority-badge.medium {
+  background-color: var(--orange);
+}
+
+.priority-badge.low {
+  background-color: var(--green);
+}
+
+/* Eingabefeld für Notizen */
+textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--ring);
+  border-radius: 12px;
+  padding: 10px;
+  background: #f9fafb;
+}
+
+.add-form>textarea {
+  margin-top: 10px;
+}
+
+.add-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* Modales Fenster (Pop-up) */
+.modal-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(17, 24, 39, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.modal-bg.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-card {
+  background: var(--card);
+  padding: 24px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  width: min(400px, 90%);
+  transform: scale(0.95);
+  transition: transform 0.3s ease;
+}
+
+.modal-bg.visible .modal-card {
+  transform: scale(1);
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.modal-head h3 {
+  margin: 0;
+}
+
+.modal-head .btn-ico {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.modal-notes {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--text);
+  line-height: 1.5;
+}
+
 
 /* =========================
-   Kalender (Grid)
+   Kalender
    ========================= */
-
-.cal-head{
-  display:grid;
-  grid-template-columns: auto 1fr auto; /* Pfeil | Titel | Pfeil */
-  align-items:center;
-  gap:10px;
-  margin-bottom:10px;
+.cal-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
 }
-.cal-head h2{ margin:0; text-align:center; }
 
-.cal-grid{
-  /* 7 Spalten = Wochentage */
-  display:grid;
+.cal-head h2 {
+  margin: 0;
+  text-align: center;
+}
+
+.cal-weekdays {
+  display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap:10px;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-weight: 600;
+  text-align: center;
 }
-.cal-cell{
-  background:#f3f4f6;
-  border:1px solid var(--ring);
-  border-radius:12px;
-  aspect-ratio: 1 / 1; /* macht die Zellen quadratisch */
-  display:grid;
-  place-items:center;
-  font-weight:600;
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
 }
-.cal-cell.today{ outline:2px solid var(--blue) }
-.cal-cell.ok{ color:var(--green) }   /* Tage mit erledigter Aufgabe */
-.cal-cell.muted{ opacity:.45 }       /* Tage aus Vormonat/Nachmonat */
+
+.cal-cell {
+  border: 1px solid var(--ring);
+  background: #f3f4f6;
+  border-radius: 12px;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cal-cell:disabled {
+  cursor: default
+}
+
+.cal-cell.today {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.cal-cell.selected {
+  background-color: var(--blue);
+  color: #fff;
+  border-color: transparent;
+}
+
+.cal-cell.ok {
+  color: var(--green)
+}
+
+.cal-cell.muted {
+  opacity: .45
+}
 
 /* =========================
-   Formular rechts
+   Formulare rechts
    ========================= */
-textarea{
-  width:100%;
-  resize:vertical;
-  border:1px solid var(--ring);
-  border-radius:12px;
-  padding:10px;
-  background:#f9fafb;
+input[type="text"],
+select {
+  border: 1px solid var(--ring);
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+  width: 100%;
 }
-input[type="text"], select{
-  border:1px solid var(--ring);
-  border-radius:12px;
-  padding:10px;
-  background:#fff;
-  width:100%;
+
+.add-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  margin-top: 8px;
 }
-.add-grid{
-  /* Mini-Grid: Select | Button */
-  display:grid;
-  grid-template-columns: 1fr auto;
-  gap:10px;
-  margin-top:8px;
+
+.add-form button.primary {
+  grid-column: 1 / -1;
 }
 
 /* =========================
-   Responsivität
+   Auth-Seiten (Login/Register)
    ========================= */
-/* Tablet: linke + Mitte nebeneinander, rechts darunter */
-@media (max-width: 1100px){
-  .app-grid{
-    grid-template-columns: 280px 1fr; /* 2 Spalten */
-    grid-template-rows: auto 1fr auto; /* Header | Haupt | Rechte Spalte */
+.auth-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: min(520px, 100%);
+  padding: 20px
+}
+
+.auth-title {
+  margin: 0 0 6px
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px
+}
+
+.auth-field {
+  display: grid;
+  gap: 6px
+}
+
+.auth-field input {
+  border: 1px solid var(--ring);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  width: 100%;
+}
+
+/* =========================
+   Responsiv
+   ========================= */
+@media (max-width: 1100px) {
+  .app-grid {
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: auto 1fr auto;
   }
-  .panel-right{
-    grid-column: 1 / -1; /* über volle Breite unterhalb */
+
+  .panel-right {
+    grid-column: 1 / -1;
+  }
+
+  .header {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .brand {
+    justify-self: center;
+    text-align: center;
+  }
+
+  .header-left {
+    grid-column: 1;
+  }
+
+  .header-right {
+    grid-column: 3;
   }
 }
 
-/* Mobile: alles einspaltig untereinander */
-@media (max-width: 760px){
-  .app-grid{
-    grid-template-columns: 1fr;  /* 1 Spalte */
-    grid-template-rows: auto;    /* fließend */
+@media (max-width: 760px) {
+  .app-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
   }
-  .header{ grid-template-columns: 1fr; gap:8px }
-  .streak{ justify-self:start }
-  .task-list{ max-height: none } /* auf Mobile nicht scrollen innerhalb */
+
+  .header {
+    grid-template-columns: 1fr;
+    gap: 8px
+  }
+
+  .header-right {
+    grid-auto-flow: row;
+    justify-items: start
+  }
+
+  .task-list {
+    max-height: none
+  }
+}
+
+@media (max-width: 420px) {
+  .task-row {
+    grid-template-columns: 6px 1fr auto;
+    grid-template-areas:
+      "bar title actions"
+      "bar check actions";
+  }
+
+  .colorbar {
+    grid-area: bar
+  }
+
+  .task-check {
+    grid-area: check;
+    justify-self: start
+  }
+
+  .task-title {
+    grid-area: title
+  }
+
+  .actions {
+    grid-area: actions
+  }
 }
