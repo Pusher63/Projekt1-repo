@@ -2,45 +2,26 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TASKLY – Login</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Login – TASKLY</title>
   <link rel="stylesheet" href="{% static 'styles.css' %}">
 </head>
-<body>
-  <!-- Zentriertes Formular mit Grid -->
-  <div class="auth-wrap">
-    <section class="card auth-card">
-      <h1 class="auth-title">Anmelden</h1>
-      <p class="muted">Willkommen zurück bei TASKLY</p>
-
-      <!--
-        Kein echtes Auth-System:
-        - Speichert nur die E-Mail lokal, damit Index dich begrüßt.
-      -->
-      <form class="auth-form" onsubmit="storeName(event)">
-        <label class="auth-field">
-          <span>E-Mail</span>
-          <input id="loginEmail" type="email" placeholder="name@mail.de" required />
-        </label>
-
-        <label class="auth-field">
-          <span>Passwort</span>
-          <input id="loginPassword" type="password" placeholder="(nur Demo, wird nicht geprüft)" required />
-        </label>
-
-        <button class="btn primary" onclick="window.location.href='{% url 'home' %}'">
-  Einloggen
-</button>
-
-        <p class="muted small">
-          Noch kein Konto?
-          <a href="{% url 'register' %}">Jetzt registrieren</a>
-        </p>
-      </form>
-    </section>
+<body class="auth-body">
+  <div class="auth-card card">
+    <h1>Willkommen zurück</h1>
+    <form id="loginForm" class="auth-form">
+      <label>Benutzername
+        <input type="text" id="loginUsername" required autocomplete="username">
+      </label>
+      <label>Passwort
+        <input type="password" id="loginPassword" required autocomplete="current-password">
+      </label>
+      <button class="btn primary" type="submit">Einloggen</button>
+      <p class="muted">Noch kein Konto? <a href="/register/">Jetzt registrieren</a></p>
+      <p id="loginError" class="error" aria-live="polite"></p>
+    </form>
   </div>
-
- <script src="{% static 'app.js' %}"></script>
+  <script src="{% static 'auth.js' %}"></script>
 </body>
 </html>

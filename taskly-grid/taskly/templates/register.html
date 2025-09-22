@@ -2,46 +2,29 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TASKLY – Registrieren</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Registrieren – TASKLY</title>
   <link rel="stylesheet" href="{% static 'styles.css' %}">
 </head>
-<body>
-  <div class="auth-wrap">
-    <section class="card auth-card">
-      <h1 class="auth-title">Registrieren</h1>
-      <p class="muted">In 10 Sekunden startklar</p>
-
-      <!--
-        Ebenfalls nur Demo:
-        - Speichert E-Mail lokal, leitet zur Startseite.
-      -->
-      <form class="auth-form" onsubmit="storeName(event)">
-        <label class="auth-field">
-          <span>E-Mail</span>
-          <input id="regEmail" type="email" placeholder="name@mail.de" required />
-        </label>
-
-        <label class="auth-field">
-          <span>Passwort</span>
-          <input id="regPassword" type="password" placeholder="min. 6 Zeichen (nicht geprüft)" minlength="6" required />
-        </label>
-
-        <label class="auth-field">
-          <span>Passwort wiederholen</span>
-          <input id="regPassword2" type="password" placeholder="nochmal" minlength="6" required />
-        </label>
-
-        <button class="btn primary">Konto erstellen</button>
-
-        <p class="muted small">
-          Schon dabei?
-           <a href="{% url 'login' %}">Jetzt einloggen</a>
-        </p>
-      </form>
-    </section>
+<body class="auth-body">
+  <div class="auth-card card">
+    <h1>Konto erstellen</h1>
+    <form id="registerForm" class="auth-form">
+      <label>Benutzername
+        <input type="text" id="regUsername" required autocomplete="username">
+      </label>
+      <label>E-Mail
+        <input type="email" id="regEmail" autocomplete="email">
+      </label>
+      <label>Passwort (min. 8 Zeichen)
+        <input type="password" id="regPassword" minlength="8" required autocomplete="new-password">
+      </label>
+      <button class="btn primary" type="submit">Registrieren</button>
+      <p class="muted">Schon ein Konto? <a href="/login/">Zum Login</a></p>
+      <p id="registerError" class="error" aria-live="polite"></p>
+    </form>
   </div>
-  <script src="{% static 'app.js' %}"></script>
+  <script src="{% static 'auth.js' %}"></script>
 </body>
 </html>

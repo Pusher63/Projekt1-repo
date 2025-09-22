@@ -1,27 +1,55 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="7932f786-5d88-4587-8fab-0afb61e3d7fe" name="Changes" comment="" />
+    <list default="true" id="7932f786-5d88-4587-8fab-0afb61e3d7fe" name="Changes" comment="Django anbindung mit Frontend, DB Konfiguriert mithilfe von MAMP">
+      <change afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/api-sync.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/auth.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/admin.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/serializers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/views.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/static/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/static/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/styles.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/tasklyapi/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/tasklyapi/settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/tasklyapi/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/tasklyapi/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/templates/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/templates/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/templates/login.html" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/templates/login.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/templates/register.html" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/templates/register.html" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="DjangoConsoleOptions" custom-start-script="import sys; print('Python %s on %s' % (sys.version, sys.platform))&#10;import django; print('Django %s' % django.get_version())&#10;sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;if 'setup' in dir(django): django.setup()&#10;import django_manage_shell; django_manage_shell.run(PROJECT_ROOT)">
+    <option name="myCustomStartScript" value="import sys; print('Python %s on %s' % (sys.version, sys.platform))&#10;import django; print('Django %s' % django.get_version())&#10;sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;if 'setup' in dir(django): django.setup()&#10;import django_manage_shell; django_manage_shell.run(PROJECT_ROOT)" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "Balabe07"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Balabe07&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/Pusher63/Projekt1-repo.git",
-    "accountId": "3c3270f3-d878-4873-a6fe-f422e6126c22"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Pusher63/Projekt1-repo.git&quot;,
+    &quot;accountId&quot;: &quot;3c3270f3-d878-4873-a6fe-f422e6126c22&quot;
   }
-}]]></component>
+}</component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 4
 }</component>
@@ -33,15 +61,53 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.OpenDjangoStructureViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "main",
     "junie.onboarding.icon.badge.shown": "true",
     "last_opened_file_path": "/Users/bartu/Downloads/Projekt1",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "com.intellij.python.django.customization.DjangoModulesConfigurable",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/taskly-grid/taskly/static" />
+      <recent name="$PROJECT_DIR$/taskly-grid/taskly/templates" />
+    </key>
+  </component>
+  <component name="RunManager">
+    <configuration name="Projekt1NEU" type="Python.DjangoServer" factoryName="Django server">
+      <module name="Projekt1NEU" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="launchJavascriptDebuger" value="false" />
+      <option name="port" value="8000" />
+      <option name="host" value="" />
+      <option name="additionalOptions" value="" />
+      <option name="browserUrl" value="" />
+      <option name="runTestServer" value="false" />
+      <option name="runNoReload" value="false" />
+      <option name="useCustomRunCommand" value="false" />
+      <option name="customRunCommand" value="" />
+      <method v="2" />
+    </configuration>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -59,10 +125,47 @@
       <updated>1757412185259</updated>
       <workItem from="1757412186289" duration="220000" />
       <workItem from="1758460496958" duration="85000" />
+      <workItem from="1758460584300" duration="20403000" />
     </task>
+    <task id="LOCAL-00001" summary="Django anbindung mit Frontend, DB Konfiguriert mithilfe von MAMP">
+      <option name="closed" value="true" />
+      <created>1758463707627</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1758463707627</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="origin/main" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Django anbindung mit Frontend, DB Konfiguriert mithilfe von MAMP" />
+    <option name="LAST_COMMIT_MESSAGE" value="Django anbindung mit Frontend, DB Konfiguriert mithilfe von MAMP" />
   </component>
 </project>
