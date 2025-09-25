@@ -1,7 +1,13 @@
 /* =========================================================
-   TASKLY – Aufgabenverwaltung mit Vanilla JS (Server-Variante)
-   - Speichert/Liest über Django REST (JWT)
-   - UI/Flow identisch zu deiner LocalStorage-Version
+   TASKLY – Aufgabenverwaltung mit Vanilla JS (LocalStorage)
+   ---------------------------------------------------------
+   Features:
+   - Aufgabenliste (hinzufügen, abhaken, umbenennen, löschen)
+   - Klickbarer Monatskalender (Auswahl ändert linke Liste)
+   - Mini-Streak (Tage in Folge mit mind. 1 erledigten Task)
+   - Filterfunktion nach Kategorie und Priorität
+   - Speicherung im localStorage
+   - Aufgabennotizen mit Modal anzeigen
    ========================================================= */
 
 /* -----------------------------
@@ -10,49 +16,38 @@
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
-const API = {
-  tasks: "/api/appointments/",
-  journal: "/api/journal/",
-  refresh: "/api/auth/refresh/"
-};
-function getAccess(){ return localStorage.getItem("access"); }
-function getRefresh(){ return localStorage.getItem("refresh"); }
-function setAccess(t){ localStorage.setItem("access", t); }
-function requireAuth(){ if(!getAccess()) location.href="/login/"; }
-function toKey(d) { return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-"); }
-function toISO(d){ return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,19)+"Z"; }
+function load(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch (e) {
+    console.error(`Fehler beim Laden von ${key}:`, e);
+    return fallback;
+  }
+}
 
-async function apiFetch(url, options = {}) {
-  const headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
-  if (getAccess()) headers.Authorization = "Bearer " + getAccess();
-  const doFetch = () => fetch(url, Object.assign({}, options, { headers }));
-  let res = await doFetch();
-  if (res.status === 401 && getRefresh()) {
-    const r = await fetch(API.refresh, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh: getRefresh() })
-    });
-    if (r.ok) {
-      const data = await r.json();
-      setAccess(data.access);
-      headers.Authorization = "Bearer " + data.access;
-      res = await doFetch();
-    }
+function save(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.error(`Fehler beim Speichern von ${key}:`, e);
   }
-  if (!res.ok) {
-    const text = await res.text().catch(()=> String(res.status));
-    throw new Error(text || res.statusText);
-  }
-  try { return await res.json(); } catch { return await res.text(); }
+}
+
+function toKey(d) {
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+}
+
+function genId() {
+  // einfache, stabile ID (Datum + Zufall)
+  return "t_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
 }
 
 /* -----------------------------
-   Server-gestützter State
+   State-Management
    ----------------------------- */
-// Map wie früher, wird aber aus dem Server befüllt
-const tasksByDay = {};      // { "YYYY-MM-DD": [task, ...] }
-const journalByDay = {};    // { "YYYY-MM-DD": "text" }
-let streak = 0;
+const tasksByDay = load("tasksByDay", {});
+let streak = load("streak", 0);
 
 const today = new Date();
 let selectedDate = new Date();
@@ -78,10 +73,6 @@ const taskNotesInputEl = $("#taskNotesInput");
 const newTaskCatEl = $("#newTaskCategory");
 const newTaskPriorityEl = $("#newTaskPriority");
 
-const journalInputEl = $("#journalInput");
-const saveJournalBtn = $("#saveJournal");
-const journalSavedEl = $("#journalSaved");
-
 const taskFilterEl = $("#taskFilter");
 const taskPriorityFilterEl = $("#taskPriorityFilter");
 const logoutBtn = $("#logoutBtn");
@@ -92,69 +83,22 @@ const modalNotes = $("#modalNotes");
 const modalCloseBtn = $("#modalClose");
 
 /* -----------------------------
-   Server-Ladefunktionen
+   Migrations-/Kompatibilitätsschritt
    ----------------------------- */
-async function loadAllTasksFromServer() {
-  // alle eigenen Tasks; clientseitig gruppieren
-  const items = await apiFetch(API.tasks);
-  // Map resetten
-  for (const k in tasksByDay) delete tasksByDay[k];
-  items.forEach(it => {
-    const d = new Date(it.start);
-    const key = toKey(d);
-    if (!tasksByDay[key]) tasksByDay[key] = [];
-    // in unsere Task-Struktur mappen (id behalten!)
-    tasksByDay[key].push({
-      id: it.id,
-      title: it.title,
-      done: !!it.done,
-      color: it.color || "orange",
-      priority: parseInt(it.priority ?? 2, 10),
-      notes: it.note || ""
-    });
-  });
-}
-
-async function createTaskOnServer(dateObj, t) {
-  const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 10, 0, 0);
-  const end = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 11, 0, 0);
-  const created = await apiFetch(API.tasks, {
-    method: "POST",
-    body: JSON.stringify({
-      title: t.title,
-      note: t.notes || "",
-      color: t.color || "orange",
-      priority: t.priority || 2,
-      done: !!t.done,
-      start: toISO(start),
-      end: toISO(end)
-    })
-  });
-  return created; // enthält id usw.
-}
-
-async function updateTaskOnServer(id, patch) {
-  return apiFetch(`${API.tasks}${id}/`, { method: "PATCH", body: JSON.stringify(patch) });
-}
-
-async function deleteTaskOnServer(id) {
-  return apiFetch(`${API.tasks}${id}/`, { method: "DELETE" });
-}
-
-async function loadJournalFromServer(dateObj) {
-  const key = toKey(dateObj);
-  const data = await apiFetch(`${API.journal}?date=${key}`);
-  journalByDay[key] = data.text || "";
-}
-
-async function saveJournalToServer(dateObj, text) {
-  const key = toKey(dateObj);
-  const data = await apiFetch(API.journal, {
-    method: "POST",
-    body: JSON.stringify({ date: key, text })
-  });
-  journalByDay[key] = data.text || "";
-}
+// Stelle sicher, dass alle Tasks eine ID besitzen (alte Daten nachrüsten)
+(function upgradeIds() {
+  let changed = false;
+  for (const dayKey of Object.keys(tasksByDay)) {
+    const arr = tasksByDay[dayKey] || [];
+    for (const t of arr) {
+      if (!t.id) {
+        t.id = genId();
+        changed = true;
+      }
+    }
+  }
+  if (changed) save("tasksByDay", tasksByDay);
+})();
 
 /* -----------------------------
    Rendering-Funktionen
@@ -185,78 +129,75 @@ function renderTasks() {
     message.className = "muted";
     message.textContent = "Keine Aufgaben gefunden.";
     taskListEl.appendChild(message);
-  } else {
-    filteredTasks.forEach((t) => {
-      const li = templateTaskEl.content.firstElementChild.cloneNode(true);
-
-      $(".colorbar", li).style.background = `var(--${t.color})`;
-      const priorityBadge = $(".priority-badge", li);
-      if (t.priority === 3) priorityBadge.classList.add("high");
-      if (t.priority === 2) priorityBadge.classList.add("medium");
-      if (t.priority === 1) priorityBadge.classList.add("low");
-
-      const check = $(".task-check", li);
-      const title = $(".task-title", li);
-      check.checked = !!t.done;
-      title.value = t.title;
-      title.readOnly = true;
-      title.title = t.title;
-
-      if (t.notes) title.addEventListener("click", () => showNotesModal(t));
-
-      check.addEventListener("change", async () => {
-        try {
-          await updateTaskOnServer(t.id, { done: check.checked });
-          t.done = check.checked;
-          updateStreak();
-          renderCalendar();
-        } catch (e) {
-          alert("Konnte Status nicht speichern");
-          check.checked = t.done;
-        }
-      });
-
-      const btnRename = $(".rename", li);
-      btnRename.addEventListener("click", () => {
-        title.readOnly = !title.readOnly;
-        if (!title.readOnly) { title.focus(); title.select(); }
-        else { title.blur(); }
-      });
-
-      title.addEventListener("keydown", e => { if (e.key === "Enter") title.blur(); });
-      title.addEventListener("blur", async () => {
-        title.readOnly = true;
-        const newTitle = title.value.trim() || t.title;
-        if (newTitle !== t.title) {
-          try {
-            await updateTaskOnServer(t.id, { title: newTitle });
-            t.title = newTitle;
-          } catch (e) {
-            alert("Konnte Titel nicht speichern");
-            title.value = t.title;
-          }
-        }
-      });
-
-      const btnDelete = $(".delete", li);
-      btnDelete.addEventListener("click", async () => {
-        try {
-          await deleteTaskOnServer(t.id);
-          // aus Original-Array des Tages löschen
-          const dayTasks = tasksByDay[toKey(selectedDate)] || [];
-          const idx = dayTasks.findIndex(x => x.id === t.id);
-          if (idx > -1) dayTasks.splice(idx, 1);
-          renderTasks();
-          updateStreak();
-          renderCalendar();
-        } catch (e) {
-          alert("Löschen fehlgeschlagen");
-        }
-      });
-
-      taskListEl.appendChild(li);
-    });
+    return;
   }
+
+  filteredTasks.forEach((t) => {
+    const li = templateTaskEl.content.firstElementChild.cloneNode(true);
+
+    // Farb- und Prioritätsanzeige
+    $(".colorbar", li).style.background = `var(--${t.color})`;
+    const priorityBadge = $(".priority-badge", li);
+    if (t.priority === 3) priorityBadge.classList.add("high");
+    else if (t.priority === 2) priorityBadge.classList.add("medium");
+    else priorityBadge.classList.add("low");
+
+    // Checkbox, Titel
+    const check = $(".task-check", li);
+    const title = $(".task-title", li);
+    check.checked = !!t.done;
+    title.value = t.title;
+    title.readOnly = true;
+    title.title = t.title;
+
+    // Notiz-Modal öffnen
+    if (t.notes) {
+      title.addEventListener("click", () => showNotesModal(t));
+    }
+
+    // Done umschalten
+    check.addEventListener("change", () => {
+      t.done = check.checked;
+      save("tasksByDay", tasksByDay);
+      updateStreak();
+      renderCalendar();
+    });
+
+    // Umbenennen
+    const btnRename = $(".rename", li);
+    btnRename.addEventListener("click", () => {
+      title.readOnly = !title.readOnly;
+      if (!title.readOnly) {
+        title.focus();
+        title.select();
+      } else {
+        t.title = title.value.trim() || t.title;
+        save("tasksByDay", tasksByDay);
+      }
+    });
+    title.addEventListener("keydown", e => { if (e.key === "Enter") title.blur(); });
+    title.addEventListener("blur", () => {
+      title.readOnly = true;
+      t.title = title.value.trim() || t.title;
+      save("tasksByDay", tasksByDay);
+    });
+
+    // Löschen (jetzt sicher per ID)
+    const btnDelete = $(".delete", li);
+    btnDelete.addEventListener("click", () => {
+      if (!confirm("Wirklich löschen?")) return;
+      const idx = tasks.findIndex(item => item.id === t.id);
+      if (idx > -1) {
+        tasks.splice(idx, 1);
+        save("tasksByDay", tasksByDay);
+        renderTasks();
+        updateStreak();
+        renderCalendar();
+      }
+    });
+
+    taskListEl.appendChild(li);
+  });
 }
 
 function showNotesModal(task) {
@@ -264,13 +205,15 @@ function showNotesModal(task) {
   modalNotes.textContent = task.notes || "";
   modal.classList.add("visible");
 }
-function hideNotesModal() { modal.classList.remove("visible"); }
 
-/* Kalender */
+function hideNotesModal() {
+  modal.classList.remove("visible");
+}
+
 function renderCalendar() {
   const y = currentMonth.getFullYear();
   const m = currentMonth.getMonth();
-  const monthNames = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
   monthNameEl.textContent = monthNames[m];
   yearNumEl.textContent = y;
@@ -297,35 +240,20 @@ function renderCalendar() {
     if (d.toDateString() === today.toDateString()) cell.classList.add("today");
     if (d.toDateString() === selectedDate.toDateString()) cell.classList.add("selected");
 
-    // OK-Markierung: mind. 1 erledigte Aufgabe an dem Tag
     if ((tasksByDay[key] || []).some(t => t.done)) {
       cell.classList.add("ok");
     }
 
-    cell.addEventListener("click", async () => {
+    cell.addEventListener("click", () => {
       selectedDate = d;
       renderCalendar();
       renderTasks();
-      await ensureJournalLoaded();
-      renderJournal();
+      // Journal wurde entfernt -> kein renderJournal() mehr
     });
     calGridEl.appendChild(cell);
   }
 }
 
-/* Journal */
-function renderJournal() {
-  const key = toKey(selectedDate);
-  journalInputEl.value = journalByDay[key] || "";
-}
-async function ensureJournalLoaded() {
-  const key = toKey(selectedDate);
-  if (journalByDay[key] === undefined) {
-    try { await loadJournalFromServer(selectedDate); } catch {}
-  }
-}
-
-/* Streak */
 function updateStreak() {
   let count = 0;
   const d = new Date(today);
@@ -336,10 +264,13 @@ function updateStreak() {
     if (importantTasks.length > 0 && importantTasks.every(t => t.done)) {
       count++;
       d.setDate(d.getDate() - 1);
-    } else break;
+    } else {
+      break;
+    }
   }
   streak = count;
   streakEl.textContent = String(streak);
+  save("streak", streak);
 }
 
 /* -----------------------------
@@ -349,12 +280,13 @@ prevBtn.addEventListener("click", () => {
   currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
   renderCalendar();
 });
+
 nextBtn.addEventListener("click", () => {
   currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
   renderCalendar();
 });
 
-addForm.addEventListener("submit", async (e) => {
+addForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const title = newTaskTitleEl.value.trim();
   if (!title) return;
@@ -362,65 +294,60 @@ addForm.addEventListener("submit", async (e) => {
   const priority = parseInt(newTaskPriorityEl.value, 10);
   const notes = taskNotesInputEl.value.trim();
 
-  try {
-    const created = await createTaskOnServer(selectedDate, { title, notes, color, priority, done: false });
-    // in Map des Tages anhängen
-    const key = toKey(selectedDate);
-    if (!tasksByDay[key]) tasksByDay[key] = [];
-    tasksByDay[key].push({
-      id: created.id,
-      title: created.title,
-      done: !!created.done,
-      color: created.color,
-      priority: created.priority,
-      notes: created.note || ""
-    });
+  const key = toKey(selectedDate);
+  const t = { id: genId(), title, done: false, color, priority, notes };
+  getTasksFor(key).push(t);
+  save("tasksByDay", tasksByDay);
 
-    newTaskTitleEl.value = "";
-    taskNotesInputEl.value = "";
-    newTaskCatEl.value = "orange";
-    newTaskPriorityEl.value = "2";
-    renderTasks();
-    renderCalendar();
-  } catch (err) {
-    alert("Speichern fehlgeschlagen:\n" + err.message);
-  }
+  newTaskTitleEl.value = "";
+  taskNotesInputEl.value = "";
+  newTaskCatEl.value = "orange";
+  newTaskPriorityEl.value = "2";
+
+  renderTasks();
+  renderCalendar();
 });
 
-saveJournalBtn.addEventListener("click", async () => {
-  try {
-    await saveJournalToServer(selectedDate, journalInputEl.value.trim());
-    const key = toKey(selectedDate);
-    journalByDay[key] = journalInputEl.value.trim();
-    journalSavedEl.textContent = "Gespeichert ✔";
-    setTimeout(() => journalSavedEl.textContent = "", 1200);
-  } catch (e) {
-    alert("Journal konnte nicht gespeichert werden");
-  }
-});
-
+// Filter
 taskFilterEl.addEventListener("change", renderTasks);
 taskPriorityFilterEl.addEventListener("change", renderTasks);
 
+// Logout (Demo)
 logoutBtn.addEventListener("click", () => {
-  localStorage.removeItem("access");
-  localStorage.removeItem("refresh");
-  location.href = "/login/";
+  localStorage.removeItem("userEmail");
+  location.href = "login.html";
 });
 
+// Modal
 modalCloseBtn.addEventListener("click", hideNotesModal);
-modal.addEventListener("click", (e) => { if (e.target === modal) hideNotesModal(); });
+modal.addEventListener("click", (e) => {
+  if (e.target === modal) hideNotesModal();
+});
+
+/* -----------------------------
+   Demo-Seed (nur beim 1. Start)
+   ----------------------------- */
+(function seedIfEmpty() {
+  const key = toKey(today);
+  if (!tasksByDay[key] || tasksByDay[key].length === 0) {
+    tasksByDay[key] = [
+      { id: genId(), title: "Projektplanung",       done: false, color: "red",    priority: 3, notes: "Meilensteine definieren und Aufgaben aufteilen." },
+      { id: genId(), title: "E-Mails sortieren",    done: false, color: "blue",   priority: 2, notes: "Posteingang aufräumen, wichtige Nachrichten archivieren." },
+      { id: genId(), title: "Rechnungen bezahlen",  done: false, color: "orange", priority: 3, notes: "Ausstehende Rechnungen prüfen und begleichen." },
+      { id: genId(), title: "Wocheneinkauf",        done: false, color: "orange", priority: 1, notes: "Einkaufsliste erstellen und besorgen." },
+      { id: genId(), title: "1 Stunde Sport",       done: true,  color: "green",  priority: 3, notes: "Geplantes Workout absolvieren." },
+      { id: genId(), title: "Lesen",                done: false, color: "purple", priority: 1, notes: "Im aktuellen Buch weiterlesen." }
+    ];
+    save("tasksByDay", tasksByDay);
+  }
+})();
 
 /* -----------------------------
    Start
    ----------------------------- */
-async function init() {
-  requireAuth();
-  renderCalendar();            // Zeige sofort den Kalender
-  await loadAllTasksFromServer(); // Lade Tasks
+function init() {
   renderTasks();
-  await ensureJournalLoaded();
-  renderJournal();
+  renderCalendar();
   updateStreak();
 }
 init();

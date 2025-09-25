@@ -18,7 +18,14 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class AppointmentSerializer(serializers.ModelSerializer):
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
     class Meta:
         model = Appointment
-        fields = ("id", "user", "title", "start", "end", "note", "created_at", "updated_at")
+        fields = (
+            "id", "user",
+            "title", "start", "end",
+            "note",
+            "done", "color", "priority",
+            "created_at", "updated_at",
+        )
         read_only_fields = ("created_at", "updated_at")
