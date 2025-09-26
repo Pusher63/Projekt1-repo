@@ -2,8 +2,9 @@
 * =========================================================
    TASKLY – Aufgabenverwaltung (Server, tagesstrikt, Date-Guard)
    - Einzige Datum-Quelle: window.TasklyApp.selectedDate
-   - Jeder GET /api/appointments/?date=... wird auf den gewählten Tag korrigiert
-   - Löschen ohne irreführendes Alert; nach jedem Delete wird der Tag neu geladen
+   - GET /api/appointments/?date=... wird auf den gewählten Tag korrigiert
+   - Cache-Busting: _ts + cache:"no-store"
+   - FIX: 204-DELETE wird korrekt behandelt -> Liste aktualisiert sofort
    ========================================================= */
 
 (function () {
@@ -41,7 +42,7 @@
   });
 
   /* -----------------------------
-     Date-Guard: patch fetch
+     Date-Guard: patch fetch (+ Cache-Busting)
      ----------------------------- */
   const _fetch = window.fetch.bind(window);
   window.fetch = function(input, init) {
@@ -49,10 +50,16 @@
       let url = (typeof input === "string") ? input : (input && input.url);
       if (url && url.includes("/api/appointments/")) {
         const u = new URL(url, location.origin);
+        // Stelle sicher, dass der Tag stimmt
         if (u.searchParams.has("date")) {
           u.searchParams.set("date", window.TasklyApp.day);
-          return _fetch(u.toString(), init);
         }
+        // Cache-Busting bei GET
+        const method = (init && init.method ? String(init.method).toUpperCase() : "GET");
+        if (method === "GET") {
+          u.searchParams.set("_ts", Date.now().toString());
+        }
+        return _fetch(u.toString(), init);
       }
     } catch (_) {}
     return _fetch(input, init);
@@ -96,13 +103,15 @@
   const modalCloseBtn = $("#modalClose");
 
   /* -----------------------------
-     API wrapper
+     API wrapper (no-store + 204-safe)
      ----------------------------- */
   async function apiFetch(url, options = {}) {
     const headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
     if (getAccess()) headers.Authorization = "Bearer " + getAccess();
-    const doFetch = (u) => fetch(u, Object.assign({}, options, { headers }));
+
+    const doFetch = (u) => fetch(u, Object.assign({ cache: "no-store" }, options, { headers }));
     let res = await doFetch(url);
+
     if (res.status === 401 && getRefresh()) {
       const r = await _fetch(API.refresh, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -115,11 +124,20 @@
         res = await doFetch(url);
       }
     }
+
     if (!res.ok) {
       const text = await res.text().catch(()=> String(res.status));
       throw new Error(text || res.statusText);
     }
-    try { return await res.json(); } catch { return await res.text(); }
+
+    // <<< WICHTIG: 204 oder kein Body -> nichts parsen, einfach null zurück
+    if (res.status === 204) return null;
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    if (ct.includes("application/json")) {
+      return await res.json();
+    }
+    // Fallback: Text (z. B. einfache OK-Antworten ohne JSON)
+    return await res.text().catch(() => null);
   }
 
   /* -----------------------------
@@ -129,6 +147,7 @@
     const key = window.TasklyApp.day;
     const res = await apiFetch(`${API.tasks}?date=${encodeURIComponent(key)}`);
     let items = normalizeItems(res);
+    // Sicherheit: exakt auf lokalen Tag filtern
     items = items.filter(it => keyFromISO(it.start) === key);
 
     tasksOfSelectedDay = items.map(it => ({
@@ -177,6 +196,7 @@
   }
 
   async function deleteTaskOnServer(id) {
+    // 204-safe: apiFetch gibt null zurück, wir reloaden danach immer
     await apiFetch(`${API.tasks}${id}/`, { method: "DELETE" });
     await reloadSelectedDay();
   }
@@ -252,13 +272,9 @@
       btnDelete.addEventListener("click", async (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-
         if (btnDelete.dataset.busy === "1") return;
-
         if (!confirm("Aufgabe wirklich löschen?")) return;
         btnDelete.dataset.busy = "1";
-
-        // kein try/catch → kein falsches Alert; der Reload passiert im Delete selbst
         await deleteTaskOnServer(t.id).finally(() => {
           btnDelete.dataset.busy = "0";
         });
