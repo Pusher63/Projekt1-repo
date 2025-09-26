@@ -1,18 +1,18 @@
-/* TASKLY – DB-only Sync mit stabilem Färben & Live-Filtern
-   Endpunkte:
-     GET    /api/appointments/?date=YYYY-MM-DD[&category=...][&priority=...]
-     POST   /api/appointments/
-     PATCH  /api/appointments/{id}/
-     DELETE /api/appointments/{id}/
-     POST   /api/auth/refresh/ { refresh }
+/* TASKLY – DB-only Sync (keine LocalStorage-Daten)
+   - Serverseitiges Filtern
+   - Stabiles Färben (Colorbar + runde Badge)
+   - KEIN Text in der Priority-Badge (nur Klassen high/medium/low)
 */
 
 (function () {
   const $  = (s, c = document) => c.querySelector(s);
   const $$ = (s, c = document) => Array.from(c.querySelectorAll(s));
-  const toYMD = (d) => d.toISOString().slice(0,10);
 
-  // --- Token handling (robust) ---
+  // ---- Datum: lokal statt UTC (FIX) ----
+  const pad = (n) => String(n).padStart(2, "0");
+  const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; // <-- lokal, kein toISOString()
+
+  // ---- Token handling ----
   const ACCESS_KEYS  = ["taskly_access_token","access","access_token","jwt_access","token"];
   const REFRESH_KEYS = ["taskly_refresh_token","refresh","refresh_token","jwt_refresh"];
   const getFromLS = (keys) => keys.map(k => localStorage.getItem(k)).find(Boolean) || "";
@@ -42,7 +42,8 @@
     const refresh = getRefreshToken();
     if (!refresh) return null;
     const res = await fetch("/api/auth/refresh/", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh })
     });
     if (!res.ok) return null;
@@ -56,14 +57,16 @@
   };
   async function api(method, url, body, _retry=false) {
     const res = await fetch(url, {
-      method, headers: { "Content-Type": "application/json", ...authHeader() },
+      method,
+      headers: { "Content-Type": "application/json", ...authHeader() },
       body: body ? JSON.stringify(body) : undefined
     });
     if (res.status === 401 && !_retry) {
-      const newAccess = await tryRefreshOnce();
-      if (newAccess) {
+      const na = await tryRefreshOnce();
+      if (na) {
         const res2 = await fetch(url, {
-          method, headers: { "Content-Type": "application/json", "Authorization": "Bearer " + newAccess },
+          method,
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + na },
           body: body ? JSON.stringify(body) : undefined
         });
         if (!res2.ok) throw new Error(`API-Fehler ${res2.status}: ${await res2.text().catch(()=> "")}`);
@@ -75,11 +78,12 @@
     return res.status === 204 ? null : res.json();
   }
 
-  // --- Mapping Priority ---
+  // ---- Priority mapping ----
   const prioToBackend   = (v) => ({ "3": 3, "2": 2, "1": 1 }[String(v)] ?? 2);
   const prioFromBackend = (v) => ({ 3: "3", 2: "2", 1: "1" }[Number(v)] ?? "2");
+  const prioClass = (n) => (n === 3 ? "high" : n === 1 ? "low" : "medium");
 
-  // --- DOM refs ---
+  // ---- DOM refs ----
   const els = {
     list: $("#taskList"),
     addForm: $("#addForm"),
@@ -92,60 +96,47 @@
     tpl: $("#taskItemTemplate"),
   };
 
-  // --- Farbtabelle (Inline-Style als Fallback, unabhängig vom CSS) ---
+  // ---- Farben für Colorbar (Inline, als sicherer Fallback) ----
   const COLOR_MAP = {
-    orange: "#FFA726", // Haushalt
-    blue:   "#42A5F5", // Ordnung
-    green:  "#66BB6A", // Gesundheit
-    red:    "#EF5350", // Studium
-    purple: "#AB47BC"  // Sonstiges
+    orange: "#f59e0b",
+    blue:   "#3b82f6",
+    green:  "#10b981",
+    red:    "#ef4444",
+    purple: "#8b5cf6"
   };
 
-  // --- State ---
+  // ---- State ----
   let selectedDate = new Date();
+  let lastDateStr = toYMD(selectedDate); // <-- FIX: einheitlicher Tagesstring
   let tasksState = [];
 
-  // --- Utility: konsistentes „Anmalen“ der Zeile ---
+  // ---- Row painting (KEIN Text in der Badge!) ----
   function paintRow(li, task) {
     const category = task.category || task.color || "orange";
-    const priority = Number(task.priority ?? 2);
+    const pNum = Number(task.priority ?? 2);
 
-    // data-Attribute (für CSS-Selektoren)
     li.dataset.category = category;
-    li.dataset.priority = prioFromBackend(priority);
+    li.dataset.priority = prioFromBackend(pNum);
 
-    // Hilfsklassen (falls dein CSS die nutzt)
-    li.classList.remove("cat-orange","cat-blue","cat-green","cat-red","cat-purple","prio-1","prio-2","prio-3");
-    li.classList.add(`cat-${category}`, `prio-${prioFromBackend(priority)}`);
-
-    // Colorbar sicher einfärben (unabhängig vom CSS)
     const colorbar = li.querySelector(".colorbar");
     if (colorbar) {
-      const col = COLOR_MAP[category] || "#e0e0e0";
-      colorbar.style.background = col;
+      colorbar.style.background = COLOR_MAP[category] || "#e5e7eb";
     }
 
-    // Priority-Badge sicher beschriften & einfärben
     const badge = li.querySelector(".priority-badge");
     if (badge) {
-      const pMap = {1: "Niedrig", 2: "Normal", 3: "Wichtig"};
-      badge.textContent = pMap[priority] || "Normal";
-      badge.classList.remove("p1","p2","p3");
-      badge.classList.add(`p${priority}`);
-      // optional Inline-Farbe (leicht): wichtiger = dunkler
-      if (priority === 3) badge.style.opacity = "1.0";
-      else if (priority === 2) badge.style.opacity = "0.85";
-      else badge.style.opacity = "0.7";
+      badge.textContent = "";                 // leer lassen
+      badge.classList.remove("high","medium","low");
+      badge.classList.add(prioClass(pNum));
     }
   }
 
-  // --- Render helpers ---
+  // ---- Render helpers ----
   function makeLi(task) {
     const node = els.tpl?.content?.firstElementChild?.cloneNode(true);
     if (!node) return document.createTextNode("");
     node.dataset.id = task.id;
 
-    // Erst „anmalen“, dann Inputs setzen
     paintRow(node, task);
 
     const titleInput = node.querySelector(".task-title");
@@ -192,18 +183,20 @@
     els.list.appendChild(frag);
   }
 
-  const upsertState   = (task) => { const i = tasksState.findIndex(x => x.id === task.id); if (i>=0) tasksState[i]=task; else tasksState.unshift(task); };
-  const removeFromState = (id) => { tasksState = tasksState.filter(x => String(x.id) !== String(id)); };
+  const upsertState     = (task) => { const i = tasksState.findIndex(x => x.id === task.id); if (i>=0) tasksState[i]=task; else tasksState.unshift(task); };
+  const removeFromState = (id)   => { tasksState = tasksState.filter(x => String(x.id) !== String(id)); };
 
-  // --- CRUD ---
+  // ---- CRUD ----
   async function loadDay(dStr) {
+    // FIX: wir merken uns exakt den String, mit dem geladen wurde
+    lastDateStr = dStr;
     const { cat, pr } = currentFilters();
     const params = new URLSearchParams({ date: dStr });
     if (cat && cat !== "all") params.set("category", cat);
     if (pr && pr !== "all")  params.set("priority", pr);
     const data = await api("GET", `/api/appointments/?${params.toString()}`);
     tasksState = Array.isArray(data) ? data : [];
-    render(); // -> paintRow färbt sofort
+    render();
   }
 
   async function createTask({ title, notes, priority, category, start, end }) {
@@ -211,38 +204,44 @@
     const created = await api("POST", "/api/appointments/", payload);
     upsertState(created);
     render();
+    // FIX: sofort vom Server nachladen, damit Filter/Zeitzone/Server-Defaults konsistent sind
+    await loadDay(lastDateStr);
     return created;
   }
 
   async function deleteTask(id) {
     await api("DELETE", `/api/appointments/${id}/`);
     removeFromState(id);
-    render(); // sofort aktualisieren
+    render();
   }
 
   async function patchTask(id, patch) {
     const updated = await api("PATCH", `/api/appointments/${id}/`, patch);
     upsertState(updated);
-    render(); // sofort aktualisieren inkl. Farbe/Badge
+    render();
     return updated;
   }
 
-  // --- Events ---
+  // ---- Events ----
   function bindUI() {
     document.addEventListener("taskly:date", (e) => {
       const ds = e?.detail?.date;
       if (!ds) return;
-      selectedDate = new Date(ds);
+
+      // FIX: "YYYY-MM-DD" NICHT direkt in new Date(ds) (würde UTC interpretieren)
+      const [y,m,d] = ds.split("-").map(Number);
+      selectedDate = new Date(y, (m||1)-1, d||1);
+
       loadDay(ds).catch(err => alert(err.message));
     });
 
-    // Filter: sowohl change als auch input (Browser-konsistent)
+    // Filter -> neu vom Server laden (für denselben Tag)
     ["change","input"].forEach(evt => {
-      els.catFilter?.addEventListener(evt, () => loadDay(toYMD(selectedDate)).catch(()=>{}));
-      els.prioFilter?.addEventListener(evt, () => loadDay(toYMD(selectedDate)).catch(()=>{}));
+      els.catFilter?.addEventListener(evt, () => loadDay(lastDateStr).catch(()=>{}));
+      els.prioFilter?.addEventListener(evt, () => loadDay(lastDateStr).catch(()=>{}));
     });
 
-    // Submit (Doppel-Post verhindern + Token sicherstellen)
+    // Submit (Block Doppel-Submit, Access prüfen)
     let submitting = false;
     els.addForm?.addEventListener("submit", async (ev) => {
       if (typeof ev.stopImmediatePropagation === "function") ev.stopImmediatePropagation();
@@ -261,11 +260,15 @@
         const priority = els.prioSel?.value || "2";
         const category = els.catSel?.value || "orange";
 
-        const day = toYMD(selectedDate);
+        // FIX: exakt denselben Tagesstring wie beim Laden verwenden
+        const day = lastDateStr || toYMD(selectedDate);
+
+        // Zeiten als naive lokale Strings (wie bisher), damit dein Backend dieselbe Logik trifft
         const start = `${day}T10:00:00`;
         const end   = `${day}T10:30:00`;
 
         await createTask({ title, notes, priority, category, start, end });
+
         try { ev.target.reset(); } catch {}
       } catch (e) {
         alert(e.message || "Fehler beim Anlegen");
@@ -274,12 +277,14 @@
       }
     }, true);
 
-    document.addEventListener("auth:login", () => loadDay(toYMD(selectedDate)).catch(()=>{}));
+    document.addEventListener("auth:login", () => loadDay(lastDateStr).catch(()=>{}));
     document.addEventListener("auth:logout", () => { tasksState = []; render(); });
   }
 
   document.addEventListener("DOMContentLoaded", () => {
     bindUI();
-    loadDay(toYMD(selectedDate)).catch(err => console.warn(err));
+    // FIX: Bootstrap mit lokalem Datum, nicht ISO-UTC
+    lastDateStr = toYMD(selectedDate);
+    loadDay(lastDateStr).catch(err => console.warn(err));
   });
 })();

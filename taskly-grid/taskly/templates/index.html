@@ -2,134 +2,128 @@
 <!doctype html>
 <html lang="de">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TASKLY – Deine Aufgaben-App</title>
-    <link rel="stylesheet" href="{% static 'styles.css' %}?v=6">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TASKLY – Deine Aufgaben-App</title>
+  <link rel="stylesheet" href="{% static 'styles.css' %}?v=6">
 
-    <script src="{% static 'app.js' %}?v=6" defer></script>
-
-    <!-- Login/JWT (unverändert aus deinem Projekt) -->
-    <script src="{% static 'auth.js' %}?v=6" defer></script>
-
-    <!-- NEU/ERSATZ: rein DB-basiertes Syncen (kein LocalStorage) -->
-    <script src="{% static 'api-sync.js' %}?v=6" defer></script>
+  <!-- Skripte in korrekter Reihenfolge -->
+  <script src="{% static 'auth.js' %}?v=6" defer></script>
+  <script src="{% static 'api-sync.js' %}?v=6" defer></script>
+  <script src="{% static 'app.js' %}?v=6" defer></script>
 </head>
-
 <body>
 
-    <div class="app-grid">
+<div class="app-grid">
 
-        <header class="card header">
-            <div class="header-left">
-                <div class="streak" title="Tage am Stück mit erledigten Aufgaben">
-                    🔥 <span id="streakCount">0</span>
-                </div>
-            </div>
-            <div class="brand">
-                <div class="brand-top">
-                    <img src="{% static 'logo.jpg' %}" alt="TASKLY Logo" class="logo">
-                    <h1>TASKLY</h1>
-                </div>
-                <p>Deine Erfolge auf einen Blick</p>
-            </div>
-            <div class="header-right">
-                <button class="btn" id="logoutBtn">Logout</button>
-            </div>
-        </header>
-
-        <section class="card panel tasks" aria-labelledby="tasksTitle">
-            <div class="tasks-header">
-                <h2 id="tasksTitle">Aufgaben für <span id="tasksDateLabel">heute</span></h2>
-                <div class="tasks-filters">
-                    <select id="taskPriorityFilter" aria-label="Priorität filtern">
-                        <option value="all">Alle Prioritäten</option>
-                        <option value="3">Wichtig</option>
-                        <option value="2">Normal</option>
-                        <option value="1">Niedrig</option>
-                    </select>
-                    <select id="taskFilter" aria-label="Aufgaben filtern">
-                        <option value="all">Alle Kategorien</option>
-                        <option value="orange">Haushalt</option>
-                        <option value="blue">Ordnung</option>
-                        <option value="green">Gesundheit</option>
-                        <option value="red">Studium</option>
-                        <option value="purple">Sonstiges</option>
-                    </select>
-                </div>
-            </div>
-            <ul id="taskList" class="task-list" aria-live="polite"></ul>
-        </section>
-
-        <section class="card panel calendar" aria-labelledby="calTitle">
-            <div class="cal-head">
-                <button id="prevMonth" class="btn-ico" aria-label="Voriger Monat">‹</button>
-                <h2 id="calTitle"><span id="monthName"></span> <span id="yearNum"></span></h2>
-                <button id="nextMonth" class="btn-ico" aria-label="Nächster Monat">›</button>
-            </div>
-            <div class="cal-weekdays">
-                <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
-            </div>
-            <div id="calendarGrid" class="cal-grid" role="grid" aria-readonly="true"></div>
-        </section>
-
-        <aside class="panel-right">
-            <section class="card panel" aria-labelledby="journalTitle">
-                <h3 id="journalTitle">Wie verlief dein Tag?</h3>
-                <textarea id="journalInput" rows="6" placeholder="Kurzer Eintrag ..."></textarea>
-                <div class="row">
-                    <button id="saveJournal" class="btn primary">Speichern</button>
-                    <small id="journalSaved" class="muted" aria-live="polite"></small>
-                </div>
-            </section>
-
-            <section class="card panel" aria-labelledby="addTitle">
-                <h3 id="addTitle">Aufgabe hinzufügen</h3>
-                <form id="addForm" class="add-form">
-                    <input id="newTaskTitle" type="text" placeholder="Gib hier deine Aufgabe ein..." required />
-                    <textarea id="taskNotesInput" rows="3" placeholder="Zusätzliche Notizen..."></textarea>
-                    <div class="add-grid">
-                        <select id="newTaskPriority" aria-label="Priorität">
-                            <option value="3">Wichtig</option>
-                            <option value="2" selected>Normal</option>
-                            <option value="1">Niedrig</option>
-                        </select>
-                        <select id="newTaskCategory" aria-label="Kategorie">
-                            <option value="orange">Haushalt</option>
-                            <option value="blue">Ordnung</option>
-                            <option value="green">Gesundheit</option>
-                            <option value="red">Studium</option>
-                            <option value="purple">Sonstiges</option>
-                        </select>
-                        <button class="btn primary" type="submit" aria-label="Aufgabe hinzufügen">Hinzufügen</button>
-                    </div>
-                </form>
-            </section>
-        </aside>
+  <!-- Header -->
+  <header class="card header">
+    <div class="header-left">
+      <div class="streak" title="Tage am Stück mit erledigten Aufgaben">
+        🔥 <span id="streakCount">0</span>
+      </div>
     </div>
+    <div class="brand">
+      <div class="brand-top">
+        <img src="{% static 'logo.jpg' %}" alt="TASKLY Logo" class="logo">
+        <h1>TASKLY</h1>
+      </div>
+      <p>Deine Erfolge auf einen Blick</p>
+    </div>
+    <div class="header-right">
+      <button class="btn" id="logoutBtn">Logout</button>
+    </div>
+  </header>
 
-    <template id="taskItemTemplate">
-        <li class="task-row">
-            <span class="priority-badge" aria-hidden="true"></span>
-            <span class="colorbar" aria-hidden="true"></span>
-            <input class="task-check" type="checkbox" aria-label="Erledigt umschalten" />
-            <input class="task-title" type="text" />
-            <div class="actions">
-                <button class="btn-ico rename" title="Umbenennen" aria-label="Umbenennen">✎</button>
-                <button class="btn-ico delete" title="Löschen" aria-label="Löschen">✕</button>
-            </div>
-        </li>
-    </template>
+  <!-- Aufgabenliste -->
+  <section class="card panel tasks" aria-labelledby="tasksTitle">
+    <div class="tasks-header">
+      <h2 id="tasksTitle">Aufgaben für <span id="tasksDateLabel">heute</span></h2>
+      <div class="tasks-filters">
+        <select id="taskPriorityFilter" aria-label="Priorität filtern">
+          <option value="all">Alle Prioritäten</option>
+          <option value="3">Wichtig</option>
+          <option value="2">Normal</option>
+          <option value="1">Niedrig</option>
+        </select>
+        <select id="taskFilter" aria-label="Aufgaben filtern">
+          <option value="all">Alle Kategorien</option>
+          <option value="orange">Haushalt</option>
+          <option value="blue">Ordnung</option>
+          <option value="green">Gesundheit</option>
+          <option value="red">Studium</option>
+          <option value="purple">Sonstiges</option>
+        </select>
+      </div>
+    </div>
+    <ul id="taskList" class="task-list" aria-live="polite"></ul>
+  </section>
 
-    <div id="modal" class="modal-bg">
-        <div class="modal-card">
-            <div class="modal-head">
-                <h3 id="modalTitle">Aufgabendetails</h3>
-                <button id="modalClose" class="btn-ico">✕</button>
-            </div>
-            <p id="modalNotes"></p>
+  <!-- Kalender -->
+  <section class="card panel calendar" aria-labelledby="calTitle">
+    <div class="cal-head">
+      <button id="prevMonth" class="btn-ico" aria-label="Voriger Monat">‹</button>
+      <h2 id="calTitle"><span id="monthName"></span> <span id="yearNum"></span></h2>
+      <button id="nextMonth" class="btn-ico" aria-label="Nächster Monat">›</button>
+    </div>
+    <div class="cal-weekdays">
+      <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+    </div>
+    <div id="calendarGrid" class="cal-grid" role="grid" aria-readonly="true"></div>
+  </section>
+
+  <!-- Rechte Spalte (nur Add-Form, ohne Journal) -->
+  <aside class="panel-right">
+    <section class="card panel" aria-labelledby="addTitle">
+      <h3 id="addTitle">Aufgabe hinzufügen</h3>
+      <form id="addForm" class="add-form">
+        <input id="newTaskTitle" type="text" placeholder="Gib hier deine Aufgabe ein..." required />
+        <textarea id="taskNotesInput" rows="3" placeholder="Zusätzliche Notizen..."></textarea>
+        <div class="add-grid">
+          <select id="newTaskPriority" aria-label="Priorität">
+            <option value="3">Wichtig</option>
+            <option value="2" selected>Normal</option>
+            <option value="1">Niedrig</option>
+          </select>
+          <select id="newTaskCategory" aria-label="Kategorie">
+            <option value="orange">Haushalt</option>
+            <option value="blue">Ordnung</option>
+            <option value="green">Gesundheit</option>
+            <option value="red">Studium</option>
+            <option value="purple">Sonstiges</option>
+          </select>
+          <button class="btn primary" type="submit" aria-label="Aufgabe hinzufügen">Hinzufügen</button>
         </div>
+      </form>
+    </section>
+  </aside>
+
+</div>
+
+<!-- Task-Template -->
+<template id="taskItemTemplate">
+  <li class="task-row">
+    <span class="priority-badge" aria-hidden="true"></span>
+    <span class="colorbar" aria-hidden="true"></span>
+    <input class="task-check" type="checkbox" aria-label="Erledigt umschalten" />
+    <input class="task-title" type="text" />
+    <div class="actions">
+      <button class="btn-ico rename" title="Umbenennen" aria-label="Umbenennen">✎</button>
+      <button class="btn-ico delete" title="Löschen" aria-label="Löschen">✕</button>
     </div>
+  </li>
+</template>
+
+<!-- Modal für Notizen -->
+<div id="modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="modalTitle">Aufgabendetails</h3>
+      <button id="modalClose" class="btn-ico">✕</button>
+    </div>
+    <p id="modalNotes"></p>
+  </div>
+</div>
 
 </body>
 </html>
