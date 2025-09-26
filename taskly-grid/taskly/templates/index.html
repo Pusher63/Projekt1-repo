@@ -6,10 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TASKLY – Deine Aufgaben-App</title>
     <link rel="stylesheet" href="{% static 'styles.css' %}?v=6">
-    <!-- DEIN ursprüngliches Skript -->
+
     <script src="{% static 'app.js' %}?v=6" defer></script>
 
+    <!-- Login/JWT (unverändert aus deinem Projekt) -->
+    <script src="{% static 'auth.js' %}?v=6" defer></script>
+
+    <!-- NEU/ERSATZ: rein DB-basiertes Syncen (kein LocalStorage) -->
+    <script src="{% static 'api-sync.js' %}?v=6" defer></script>
 </head>
+
 <body>
 
     <div class="app-grid">

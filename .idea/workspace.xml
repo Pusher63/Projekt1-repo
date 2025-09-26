@@ -5,20 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7932f786-5d88-4587-8fab-0afb61e3d7fe" name="Changes" comment="Django anbindung mit Frontend, DB Konfiguriert mithilfe von MAMP">
-      <change afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/api-sync.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/auth.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/admin.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/serializers.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/static/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/app.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/static/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/styles.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/tasklyapi/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/tasklyapi/settings.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/tasklyapi/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/tasklyapi/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/static/api-sync.js" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/api-sync.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/templates/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/templates/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/templates/login.html" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/templates/login.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/templates/register.html" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/templates/register.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,6 +28,11 @@
     </option>
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="main" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
@@ -64,7 +61,7 @@
     "RunOnceActivity.OpenDjangoStructureViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "neuneu",
     "junie.onboarding.icon.badge.shown": "true",
     "last_opened_file_path": "/Users/bartu/Downloads/Projekt1",
     "node.js.detected.package.eslint": "true",

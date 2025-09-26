@@ -1,0 +1,552 @@
+Index: taskly-grid/taskly/static/app.js
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>/* =========================================================\n   TASKLY – Aufgabenverwaltung mit Vanilla JS (LocalStorage)\n   ---------------------------------------------------------\n   Features:\n   - Aufgabenliste (hinzufügen, abhaken, umbenennen, löschen)\n   - Klickbarer Monatskalender (Auswahl ändert linke Liste)\n   - Mini-Streak (Tage in Folge mit mind. 1 erledigten Task)\n   - Filterfunktion nach Kategorie und Priorität\n   - Speicherung im localStorage\n   - Aufgabennotizen mit Modal anzeigen\n   ========================================================= */\n\n/* -----------------------------\n   Kleine Helfer-Funktionen\n   ----------------------------- */\nconst $ = (sel, ctx = document) => ctx.querySelector(sel);\nconst $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));\n\nfunction load(key, fallback) {\n  try {\n    const value = localStorage.getItem(key);\n    return value ? JSON.parse(value) : fallback;\n  } catch (e) {\n    console.error(`Fehler beim Laden von ${key}:`, e);\n    return fallback;\n  }\n}\n\nfunction save(key, value) {\n  try {\n    localStorage.setItem(key, JSON.stringify(value));\n  } catch (e) {\n    console.error(`Fehler beim Speichern von ${key}:`, e);\n  }\n}\n\nfunction toKey(d) {\n  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, \"0\"), String(d.getDate()).padStart(2, \"0\")].join(\"-\");\n}\n\nfunction genId() {\n  // einfache, stabile ID (Datum + Zufall)\n  return \"t_\" + Date.now().toString(36) + \"_\" + Math.random().toString(36).slice(2, 8);\n}\n\n/* -----------------------------\n   State-Management\n   ----------------------------- */\nconst tasksByDay = load(\"tasksByDay\", {});\nlet streak = load(\"streak\", 0);\n\nconst today = new Date();\nlet selectedDate = new Date();\nlet currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);\n\n/* -----------------------------\n   DOM-Referenzen\n   ----------------------------- */\nconst taskListEl = $(\"#taskList\");\nconst templateTaskEl = $(\"#taskItemTemplate\");\nconst streakEl = $(\"#streakCount\");\nconst tasksDateLabelEl = $(\"#tasksDateLabel\");\n\nconst monthNameEl = $(\"#monthName\");\nconst yearNumEl = $(\"#yearNum\");\nconst calGridEl = $(\"#calendarGrid\");\nconst prevBtn = $(\"#prevMonth\");\nconst nextBtn = $(\"#nextMonth\");\n\nconst addForm = $(\"#addForm\");\nconst newTaskTitleEl = $(\"#newTaskTitle\");\nconst taskNotesInputEl = $(\"#taskNotesInput\");\nconst newTaskCatEl = $(\"#newTaskCategory\");\nconst newTaskPriorityEl = $(\"#newTaskPriority\");\n\nconst taskFilterEl = $(\"#taskFilter\");\nconst taskPriorityFilterEl = $(\"#taskPriorityFilter\");\nconst logoutBtn = $(\"#logoutBtn\");\n\nconst modal = $(\"#modal\");\nconst modalTitle = $(\"#modalTitle\");\nconst modalNotes = $(\"#modalNotes\");\nconst modalCloseBtn = $(\"#modalClose\");\n\n/* -----------------------------\n   Migrations-/Kompatibilitätsschritt\n   ----------------------------- */\n// Stelle sicher, dass alle Tasks eine ID besitzen (alte Daten nachrüsten)\n(function upgradeIds() {\n  let changed = false;\n  for (const dayKey of Object.keys(tasksByDay)) {\n    const arr = tasksByDay[dayKey] || [];\n    for (const t of arr) {\n      if (!t.id) {\n        t.id = genId();\n        changed = true;\n      }\n    }\n  }\n  if (changed) save(\"tasksByDay\", tasksByDay);\n})();\n\n/* -----------------------------\n   Rendering-Funktionen\n   ----------------------------- */\nfunction getTasksFor(key) {\n  if (!tasksByDay[key]) tasksByDay[key] = [];\n  return tasksByDay[key];\n}\n\nfunction renderTasks() {\n  const isToday = selectedDate.toDateString() === new Date().toDateString();\n  tasksDateLabelEl.textContent = isToday ? \"heute\" : selectedDate.toLocaleDateString(\"de-DE\");\n\n  const key = toKey(selectedDate);\n  const tasks = getTasksFor(key);\n  const categoryFilter = taskFilterEl.value;\n  const priorityFilter = taskPriorityFilterEl.value;\n\n  let filteredTasks = tasks;\n  if (categoryFilter !== \"all\") filteredTasks = filteredTasks.filter(t => t.color === categoryFilter);\n  if (priorityFilter !== \"all\") filteredTasks = filteredTasks.filter(t => t.priority === parseInt(priorityFilter, 10));\n  filteredTasks.sort((a, b) => b.priority - a.priority);\n\n  taskListEl.innerHTML = \"\";\n\n  if (filteredTasks.length === 0) {\n    const message = document.createElement(\"li\");\n    message.className = \"muted\";\n    message.textContent = \"Keine Aufgaben gefunden.\";\n    taskListEl.appendChild(message);\n    return;\n  }\n\n  filteredTasks.forEach((t) => {\n    const li = templateTaskEl.content.firstElementChild.cloneNode(true);\n\n    // Farb- und Prioritätsanzeige\n    $(\".colorbar\", li).style.background = `var(--${t.color})`;\n    const priorityBadge = $(\".priority-badge\", li);\n    if (t.priority === 3) priorityBadge.classList.add(\"high\");\n    else if (t.priority === 2) priorityBadge.classList.add(\"medium\");\n    else priorityBadge.classList.add(\"low\");\n\n    // Checkbox, Titel\n    const check = $(\".task-check\", li);\n    const title = $(\".task-title\", li);\n    check.checked = !!t.done;\n    title.value = t.title;\n    title.readOnly = true;\n    title.title = t.title;\n\n    // Notiz-Modal öffnen\n    if (t.notes) {\n      title.addEventListener(\"click\", () => showNotesModal(t));\n    }\n\n    // Done umschalten\n    check.addEventListener(\"change\", () => {\n      t.done = check.checked;\n      save(\"tasksByDay\", tasksByDay);\n      updateStreak();\n      renderCalendar();\n    });\n\n    // Umbenennen\n    const btnRename = $(\".rename\", li);\n    btnRename.addEventListener(\"click\", () => {\n      title.readOnly = !title.readOnly;\n      if (!title.readOnly) {\n        title.focus();\n        title.select();\n      } else {\n        t.title = title.value.trim() || t.title;\n        save(\"tasksByDay\", tasksByDay);\n      }\n    });\n    title.addEventListener(\"keydown\", e => { if (e.key === \"Enter\") title.blur(); });\n    title.addEventListener(\"blur\", () => {\n      title.readOnly = true;\n      t.title = title.value.trim() || t.title;\n      save(\"tasksByDay\", tasksByDay);\n    });\n\n    // Löschen (jetzt sicher per ID)\n    const btnDelete = $(\".delete\", li);\n    btnDelete.addEventListener(\"click\", () => {\n      if (!confirm(\"Wirklich löschen?\")) return;\n      const idx = tasks.findIndex(item => item.id === t.id);\n      if (idx > -1) {\n        tasks.splice(idx, 1);\n        save(\"tasksByDay\", tasksByDay);\n        renderTasks();\n        updateStreak();\n        renderCalendar();\n      }\n    });\n\n    taskListEl.appendChild(li);\n  });\n}\n\nfunction showNotesModal(task) {\n  modalTitle.textContent = task.title;\n  modalNotes.textContent = task.notes || \"\";\n  modal.classList.add(\"visible\");\n}\n\nfunction hideNotesModal() {\n  modal.classList.remove(\"visible\");\n}\n\nfunction renderCalendar() {\n  const y = currentMonth.getFullYear();\n  const m = currentMonth.getMonth();\n  const monthNames = [\"Januar\", \"Februar\", \"März\", \"April\", \"Mai\", \"Juni\", \"Juli\", \"August\", \"September\", \"Oktober\", \"November\", \"Dezember\"];\n\n  monthNameEl.textContent = monthNames[m];\n  yearNumEl.textContent = y;\n  calGridEl.innerHTML = \"\";\n\n  const firstDay = new Date(y, m, 1);\n  const firstWeekday = (firstDay.getDay() + 6) % 7;\n  const daysInMonth = new Date(y, m + 1, 0).getDate();\n\n  for (let i = 0; i < firstWeekday; i++) {\n    const cell = document.createElement(\"div\");\n    cell.className = \"cal-cell muted\";\n    calGridEl.appendChild(cell);\n  }\n\n  for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {\n    const cell = document.createElement(\"button\");\n    cell.type = \"button\";\n    cell.className = \"cal-cell\";\n    const d = new Date(y, m, dayNum);\n    cell.textContent = String(dayNum);\n    const key = toKey(d);\n\n    if (d.toDateString() === today.toDateString()) cell.classList.add(\"today\");\n    if (d.toDateString() === selectedDate.toDateString()) cell.classList.add(\"selected\");\n\n    if ((tasksByDay[key] || []).some(t => t.done)) {\n      cell.classList.add(\"ok\");\n    }\n\n    cell.addEventListener(\"click\", () => {\n      selectedDate = d;\n      renderCalendar();\n      renderTasks();\n      // Journal wurde entfernt -> kein renderJournal() mehr\n    });\n    calGridEl.appendChild(cell);\n  }\n}\n\nfunction updateStreak() {\n  let count = 0;\n  const d = new Date(today);\n  while (true) {\n    const key = toKey(d);\n    const tasksForDay = tasksByDay[key] || [];\n    const importantTasks = tasksForDay.filter(t => t.priority === 3);\n    if (importantTasks.length > 0 && importantTasks.every(t => t.done)) {\n      count++;\n      d.setDate(d.getDate() - 1);\n    } else {\n      break;\n    }\n  }\n  streak = count;\n  streakEl.textContent = String(streak);\n  save(\"streak\", streak);\n}\n\n/* -----------------------------\n   Event-Listener\n   ----------------------------- */\nprevBtn.addEventListener(\"click\", () => {\n  currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);\n  renderCalendar();\n});\n\nnextBtn.addEventListener(\"click\", () => {\n  currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);\n  renderCalendar();\n});\n\naddForm.addEventListener(\"submit\", (e) => {\n  e.preventDefault();\n  const title = newTaskTitleEl.value.trim();\n  if (!title) return;\n  const color = newTaskCatEl.value;\n  const priority = parseInt(newTaskPriorityEl.value, 10);\n  const notes = taskNotesInputEl.value.trim();\n\n  const key = toKey(selectedDate);\n  const t = { id: genId(), title, done: false, color, priority, notes };\n  getTasksFor(key).push(t);\n  save(\"tasksByDay\", tasksByDay);\n\n  newTaskTitleEl.value = \"\";\n  taskNotesInputEl.value = \"\";\n  newTaskCatEl.value = \"orange\";\n  newTaskPriorityEl.value = \"2\";\n\n  renderTasks();\n  renderCalendar();\n});\n\n// Filter\ntaskFilterEl.addEventListener(\"change\", renderTasks);\ntaskPriorityFilterEl.addEventListener(\"change\", renderTasks);\n\n// Logout (Demo)\nlogoutBtn.addEventListener(\"click\", () => {\n  localStorage.removeItem(\"userEmail\");\n  location.href = \"login.html\";\n});\n\n// Modal\nmodalCloseBtn.addEventListener(\"click\", hideNotesModal);\nmodal.addEventListener(\"click\", (e) => {\n  if (e.target === modal) hideNotesModal();\n});\n\n/* -----------------------------\n   Demo-Seed (nur beim 1. Start)\n   ----------------------------- */\n(function seedIfEmpty() {\n  const key = toKey(today);\n  if (!tasksByDay[key] || tasksByDay[key].length === 0) {\n    tasksByDay[key] = [\n      { id: genId(), title: \"Projektplanung\",       done: false, color: \"red\",    priority: 3, notes: \"Meilensteine definieren und Aufgaben aufteilen.\" },\n      { id: genId(), title: \"E-Mails sortieren\",    done: false, color: \"blue\",   priority: 2, notes: \"Posteingang aufräumen, wichtige Nachrichten archivieren.\" },\n      { id: genId(), title: \"Rechnungen bezahlen\",  done: false, color: \"orange\", priority: 3, notes: \"Ausstehende Rechnungen prüfen und begleichen.\" },\n      { id: genId(), title: \"Wocheneinkauf\",        done: false, color: \"orange\", priority: 1, notes: \"Einkaufsliste erstellen und besorgen.\" },\n      { id: genId(), title: \"1 Stunde Sport\",       done: true,  color: \"green\",  priority: 3, notes: \"Geplantes Workout absolvieren.\" },\n      { id: genId(), title: \"Lesen\",                done: false, color: \"purple\", priority: 1, notes: \"Im aktuellen Buch weiterlesen.\" }\n    ];\n    save(\"tasksByDay\", tasksByDay);\n  }\n})();\n\n/* -----------------------------\n   Start\n   ----------------------------- */\nfunction init() {\n  renderTasks();\n  renderCalendar();\n  updateStreak();\n}\ninit();\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/taskly-grid/taskly/static/app.js b/taskly-grid/taskly/static/app.js
+--- a/taskly-grid/taskly/static/app.js	(revision c96b14b01631f60ba13d3524e8701eee63221688)
++++ b/taskly-grid/taskly/static/app.js	(date 1758819073000)
+@@ -324,23 +324,7 @@
+   if (e.target === modal) hideNotesModal();
+ });
+ 
+-/* -----------------------------
+-   Demo-Seed (nur beim 1. Start)
+-   ----------------------------- */
+-(function seedIfEmpty() {
+-  const key = toKey(today);
+-  if (!tasksByDay[key] || tasksByDay[key].length === 0) {
+-    tasksByDay[key] = [
+-      { id: genId(), title: "Projektplanung",       done: false, color: "red",    priority: 3, notes: "Meilensteine definieren und Aufgaben aufteilen." },
+-      { id: genId(), title: "E-Mails sortieren",    done: false, color: "blue",   priority: 2, notes: "Posteingang aufräumen, wichtige Nachrichten archivieren." },
+-      { id: genId(), title: "Rechnungen bezahlen",  done: false, color: "orange", priority: 3, notes: "Ausstehende Rechnungen prüfen und begleichen." },
+-      { id: genId(), title: "Wocheneinkauf",        done: false, color: "orange", priority: 1, notes: "Einkaufsliste erstellen und besorgen." },
+-      { id: genId(), title: "1 Stunde Sport",       done: true,  color: "green",  priority: 3, notes: "Geplantes Workout absolvieren." },
+-      { id: genId(), title: "Lesen",                done: false, color: "purple", priority: 1, notes: "Im aktuellen Buch weiterlesen." }
+-    ];
+-    save("tasksByDay", tasksByDay);
+-  }
+-})();
++
+ 
+ /* -----------------------------
+    Start
+Index: .idea/Projekt1NEU.iml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<module version=\"4\">\n  <component name=\"PyDocumentationSettings\">\n    <option name=\"format\" value=\"PLAIN\" />\n    <option name=\"myDocStringFormat\" value=\"Plain\" />\n  </component>\n</module>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/Projekt1NEU.iml b/.idea/Projekt1NEU.iml
+--- a/.idea/Projekt1NEU.iml	(revision c96b14b01631f60ba13d3524e8701eee63221688)
++++ b/.idea/Projekt1NEU.iml	(date 1758817502000)
+@@ -4,4 +4,12 @@
+     <option name="format" value="PLAIN" />
+     <option name="myDocStringFormat" value="Plain" />
+   </component>
++  <component name="TemplatesService">
++    <option name="TEMPLATE_CONFIGURATION" value="Jinja2" />
++    <option name="TEMPLATE_FOLDERS">
++      <list>
++        <option value="$MODULE_DIR$/taskly-grid/taskly/templates" />
++      </list>
++    </option>
++  </component>
+ </module>
+\ No newline at end of file
+Index: taskly-grid/taskly/static/api-sync.js
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>// ======================================================\n// API-Sync für TASKLY (belässt dein Frontend unverändert)\n// - lädt/zeigt Termine (JWT)\n// - speichert bei \"Hinzufügen\"\n// - PATCH Titel, DELETE Eintrag\n// - setzt Kalenderpunkte\n// - viele Debug-Logs -> Konsole öffnen (F12)\n// ======================================================\nwindow.API_DEBUG = true;\n\nconst API = {\n  me: \"/api/me/\",\n  appointments: \"/api/appointments/\",\n  refresh: \"/api/auth/refresh/\"\n};\n\nconst MONTHS_DE = [\"Januar\",\"Februar\",\"März\",\"April\",\"Mai\",\"Juni\",\"Juli\",\"August\",\"September\",\"Oktober\",\"November\",\"Dezember\"];\n\nfunction log(...args){ if(window.API_DEBUG) console.log(\"[api-sync]\", ...args); }\nfunction warn(...args){ if(window.API_DEBUG) console.warn(\"[api-sync]\", ...args); }\n\nfunction getAccess(){ return localStorage.getItem(\"access\"); }\nfunction getRefresh(){ return localStorage.getItem(\"refresh\"); }\nfunction setAccess(t){ localStorage.setItem(\"access\", t); }\nfunction requireAuth(){ if(!getAccess()) location.href=\"/login/\"; }\nfunction toISO(d){ return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,19)+\"Z\"; }\n\nasync function apiFetch(url, options={}){\n  const headers = Object.assign({\"Content-Type\":\"application/json\"}, options.headers||{});\n  if(getAccess()) headers.Authorization = \"Bearer \" + getAccess();\n  const doFetch = ()=> fetch(url, Object.assign({}, options, {headers}));\n\n  log(\"FETCH\", options.method||\"GET\", url);\n  let res = await doFetch();\n\n  if(res.status===401 && getRefresh()){\n    log(\"401 -> refresh token\");\n    const r = await fetch(API.refresh, {\n      method:\"POST\", headers:{\"Content-Type\":\"application/json\"},\n      body: JSON.stringify({refresh:getRefresh()})\n    });\n    if(r.ok){\n      const data = await r.json();\n      setAccess(data.access);\n      headers.Authorization = \"Bearer \" + data.access;\n      res = await doFetch();\n    }\n  }\n\n  let payloadText = \"\";\n  try{ payloadText = await res.clone().text(); }catch{}\n  log(\"RESP\", res.status, payloadText);\n\n  if(!res.ok){\n    throw new Error(payloadText || res.statusText);\n  }\n  try{ return await res.json(); } catch{ return await res.text(); }\n}\n\n// ------------------ GLOBAL STATE ------------------\nlet ALL_APPTS = [];\n\n// ------------------ BOOT ------------------\ndocument.addEventListener(\"DOMContentLoaded\", () => {\n  requireAuth();\n\n  const logoutBtn = document.getElementById(\"logoutBtn\");\n  if (logoutBtn){\n    logoutBtn.addEventListener(\"click\", ()=>{\n      localStorage.removeItem(\"access\");\n      localStorage.removeItem(\"refresh\");\n      location.href=\"/login/\";\n    });\n  }\n\n  // Reagiere auf Neubau des Kalenders durch dein app.js\n  const grid = document.getElementById(\"calendarGrid\");\n  if (grid){\n    const mo = new MutationObserver(()=> { paintCalendarDots(); renderDayList(); });\n    mo.observe(grid, {childList:true});\n  }\n\n  // Monatswechsel -> kurz warten, dann Punkte neu setzen\n  const prev = document.getElementById(\"prevMonth\");\n  const next = document.getElementById(\"nextMonth\");\n  if(prev) prev.addEventListener(\"click\", ()=> setTimeout(paintCalendarDots, 0));\n  if(next) next.addEventListener(\"click\", ()=> setTimeout(paintCalendarDots, 0));\n\n  // Klick auf Tag -> Liste neu\n  if(grid){\n    grid.addEventListener(\"click\", (e)=>{\n      const day = e.target.closest(\".cal-day\");\n      if(day && !day.classList.contains(\"empty\")) setTimeout(renderDayList, 0);\n    });\n  }\n\n  // Add-Form -> POST\n  const addForm = document.getElementById(\"addForm\");\n  if(addForm){\n    addForm.addEventListener(\"submit\", async (e)=>{\n      e.preventDefault(); // lässt andere Listener weiterlaufen\n      const titleEl = document.getElementById(\"newTaskTitle\");\n      const noteEl  = document.getElementById(\"taskNotesInput\");\n      const title = (titleEl?.value||\"\").trim();\n      const note  = (noteEl?.value||\"\").trim();\n      if(!title) return;\n\n      const base = getSelectedDate() || new Date();\n      const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 10,0,0);\n      const end   = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 11,0,0);\n\n      try{\n        const created = await apiFetch(API.appointments, {\n          method:\"POST\",\n          body: JSON.stringify({title, note, start: toISO(start), end: toISO(end)})\n        });\n        // lokal anhängen, damit es sofort erscheint\n        ALL_APPTS.push(created);\n        paintCalendarDots();\n        renderDayList();\n        if(titleEl) titleEl.value = \"\";\n        if(noteEl) noteEl.value = \"\";\n      }catch(err){\n        warn(\"POST failed:\", err);\n        alert(\"Speichern fehlgeschlagen:\\n\" + err.message);\n      }\n    });\n  }\n\n  // Initial load\n  refreshFromServer();\n});\n\n// ------------------ SERVER <-> UI ------------------\nasync function refreshFromServer(){\n  try{\n    ALL_APPTS = await apiFetch(API.appointments);\n    paintCalendarDots();\n    renderDayList();\n  }catch(err){\n    warn(\"GET /appointments failed:\", err.message);\n    // UI nicht leeren, damit dein Frontend-Content sichtbar bleibt\n  }\n}\n\nfunction getViewYearMonth(){\n  const mName = (document.getElementById(\"monthName\")?.textContent||\"\").trim();\n  const yTxt  = (document.getElementById(\"yearNum\")?.textContent||\"\").trim();\n  const y = parseInt(yTxt||\"\",10);\n  const m = MONTHS_DE.indexOf(mName);\n  return {year: isNaN(y)? new Date().getFullYear(): y, month: m<0? new Date().getMonth(): m};\n}\n\nfunction getSelectedDate(){\n  const grid = document.getElementById(\"calendarGrid\");\n  const sel = grid?.querySelector(\".cal-day.selected\");\n  const {year, month} = getViewYearMonth();\n  if(sel){\n    const day = parseInt(sel.textContent,10);\n    if(!isNaN(day)) return new Date(year, month, day);\n  }\n  const today = new Date();\n  if(today.getFullYear()===year && today.getMonth()===month) return today;\n  return new Date(year, month, 1);\n}\n\nfunction groupByDay(list, y, m){\n  const map = {};\n  list.forEach(a=>{\n    const d = new Date(a.start);\n    if(d.getFullYear()===y && d.getMonth()===m){\n      const dd = d.getDate();\n      (map[dd] ||= []).push(a);\n    }\n  });\n  return map;\n}\n\nfunction paintCalendarDots(){\n  const grid = document.getElementById(\"calendarGrid\");\n  if(!grid) return;\n  const {year, month} = getViewYearMonth();\n  const byDay = groupByDay(ALL_APPTS, year, month);\n  // alte Dots weg\n  grid.querySelectorAll(\".cal-day .cal-dot\").forEach(el=> el.remove());\n  // neue setzen\n  [...grid.querySelectorAll(\".cal-day\")].forEach(cell=>{\n    if(cell.classList.contains(\"empty\")) return;\n    const day = parseInt(cell.textContent,10);\n    if(!isNaN(day) && byDay[day]?.length){\n      const dot = document.createElement(\"div\");\n      dot.className = \"cal-dot\";\n      dot.title = `${byDay[day].length} Termin(e)`;\n      cell.appendChild(dot);\n    }\n  });\n}\n\nfunction renderDayList(){\n  const list = document.getElementById(\"taskList\");\n  const label= document.getElementById(\"tasksDateLabel\");\n  if(!list) return;\n\n  const base = getSelectedDate();\n  label && (label.textContent = base.toLocaleDateString(\"de-DE\",{weekday:\"long\", day:\"2-digit\", month:\"2-digit\", year:\"numeric\"}));\n\n  const items = ALL_APPTS.filter(a=>{\n    const d = new Date(a.start);\n    return d.getFullYear()===base.getFullYear() && d.getMonth()===base.getMonth() && d.getDate()===base.getDate();\n  }).sort((a,b)=> new Date(a.start)-new Date(b.start));\n\n  list.innerHTML = \"\";\n  if(!items.length){\n    const li = document.createElement(\"li\");\n    li.className = \"task-row\";\n    li.innerHTML = `<span class=\"muted\">Keine Einträge</span>`;\n    list.appendChild(li);\n    return;\n  }\n\n  const tpl = document.getElementById(\"taskItemTemplate\");\n  items.forEach(a=>{\n    const node = tpl.content.firstElementChild.cloneNode(true);\n    const titleInput = node.querySelector(\".task-title\");\n    titleInput.value = a.title;\n\n    const renameBtn = node.querySelector(\".rename\");\n    if(renameBtn) renameBtn.addEventListener(\"click\", ()=> titleInput.focus());\n\n    titleInput.addEventListener(\"change\", async (ev)=>{\n      try{\n        await apiFetch(API.appointments + a.id + \"/\", {method:\"PATCH\", body: JSON.stringify({title: ev.target.value})});\n        const idx = ALL_APPTS.findIndex(x=> x.id===a.id);\n        if(idx>=0) ALL_APPTS[idx].title = ev.target.value;\n      }catch(err){\n        warn(\"PATCH failed:\", err);\n        alert(\"Update fehlgeschlagen\");\n        ev.target.value = a.title;\n      }\n    });\n\n    node.querySelector(\".delete\").addEventListener(\"click\", async ()=>{\n      if(!confirm(\"Eintrag löschen?\")) return;\n      try{\n        await apiFetch(API.appointments + a.id + \"/\", {method:\"DELETE\"});\n        ALL_APPTS = ALL_APPTS.filter(x=> x.id!==a.id);\n        paintCalendarDots();\n        renderDayList();\n      }catch(err){ warn(\"DELETE failed:\", err); alert(\"Löschen fehlgeschlagen\"); }\n    });\n\n    list.appendChild(node);\n  });\n}\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/taskly-grid/taskly/static/api-sync.js b/taskly-grid/taskly/static/api-sync.js
+--- a/taskly-grid/taskly/static/api-sync.js	(revision c96b14b01631f60ba13d3524e8701eee63221688)
++++ b/taskly-grid/taskly/static/api-sync.js	(date 1758818437000)
+@@ -14,20 +14,34 @@
+   refresh: "/api/auth/refresh/"
+ };
+ 
+-const MONTHS_DE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
++// ------------------------
++// kleine Logger
++// ------------------------
++const log  = (...a)=> window.API_DEBUG && console.log("[API]", ...a);
++const warn = (...a)=> console.warn("[API]", ...a);
+ 
+-function log(...args){ if(window.API_DEBUG) console.log("[api-sync]", ...args); }
+-function warn(...args){ if(window.API_DEBUG) console.warn("[api-sync]", ...args); }
++// ------------------------
++// Token-Storage Helpers
++// ------------------------
++const ACCESS_KEY  = "taskly_access";
++const REFRESH_KEY = "taskly_refresh";
+ 
+-function getAccess(){ return localStorage.getItem("access"); }
+-function getRefresh(){ return localStorage.getItem("refresh"); }
+-function setAccess(t){ localStorage.setItem("access", t); }
+-function requireAuth(){ if(!getAccess()) location.href="/login/"; }
+-function toISO(d){ return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,19)+"Z"; }
++function setAccess(v){ try{ localStorage.setItem(ACCESS_KEY, v || ""); }catch{} }
++function setRefresh(v){ try{ localStorage.setItem(REFRESH_KEY, v || ""); }catch{} }
++function getAccess(){ try{ return localStorage.getItem(ACCESS_KEY) || ""; }catch{ return ""; } }
++function getRefresh(){ try{ return localStorage.getItem(REFRESH_KEY) || ""; }catch{ return ""; } }
+ 
++// ------------------------
++// ISO Helper
++// ------------------------
++const toISO = (d)=> (d instanceof Date ? d.toISOString() : d);
++
++// ------------------------
++// zentraler Fetch mit Auto-Refresh (401 -> Refresh-Token)
++// ------------------------
+ async function apiFetch(url, options={}){
+   const headers = Object.assign({"Content-Type":"application/json"}, options.headers||{});
+-  if(getAccess()) headers.Authorization = "Bearer " + getAccess();
++  headers.Authorization = "Bearer " + getAccess();
+   const doFetch = ()=> fetch(url, Object.assign({}, options, {headers}));
+ 
+   log("FETCH", options.method||"GET", url);
+@@ -36,65 +50,163 @@
+   if(res.status===401 && getRefresh()){
+     log("401 -> refresh token");
+     const r = await fetch(API.refresh, {
+-      method:"POST", headers:{"Content-Type":"application/json"},
+-      body: JSON.stringify({refresh:getRefresh()})
++      method:"POST",
++      headers: {"Content-Type":"application/json"},
++      body: JSON.stringify({refresh: getRefresh()})
+     });
++
+     if(r.ok){
+       const data = await r.json();
+-      setAccess(data.access);
+-      headers.Authorization = "Bearer " + data.access;
++      if(data?.access) setAccess(data.access);
++      headers.Authorization = "Bearer " + getAccess();
+       res = await doFetch();
+     }
+   }
+ 
+-  let payloadText = "";
+-  try{ payloadText = await res.clone().text(); }catch{}
+-  log("RESP", res.status, payloadText);
+-
+   if(!res.ok){
+-    throw new Error(payloadText || res.statusText);
++    let msg = res.status + " " + res.statusText;
++    try{ msg += ": " + (await res.clone().text()); }catch{}
++    throw new Error(msg);
+   }
+-  try{ return await res.json(); } catch{ return await res.text(); }
++
++  const ct = res.headers.get("content-type") || "";
++  return ct.includes("application/json") ? res.json() : res.text();
+ }
+ 
+-// ------------------ GLOBAL STATE ------------------
+-let ALL_APPTS = [];
++// ------------------------
++// Globale State-Variablen (werden vom UI verwendet)
++// ------------------------
++let CURRENT_USER = null;
++let ALL_APPTS    = [];
+ 
+-// ------------------ BOOT ------------------
+-document.addEventListener("DOMContentLoaded", () => {
+-  requireAuth();
++// ------------------------
++// Kalender-Punkte setzen (nutzt vorhandene paintCalendarDots())
++// ------------------------
++function paintCalendarDots(){
++  try{
++    // Erwartet, dass dein bestehendes Frontend diese Funktion hat.
++    // Wenn bereits vorhanden, tun wir einfach nichts hier.
++    if(typeof window.paintCalendarDotsImpl === "function"){
++      window.paintCalendarDotsImpl(ALL_APPTS);
++    }else{
++      // no-op; eigentliche Implementierung steckt im bestehenden UI
++    }
++  }catch(e){ warn("paintCalendarDots error", e); }
++}
++
++// ------------------------
++// Liste für ausgewählten Tag rendern (nutzt vorhandene renderDayList())
++// ------------------------
++function renderDayList(){
++  try{
++    if(typeof window.renderDayListImpl === "function"){
++      window.renderDayListImpl(ALL_APPTS);
++    }else{
++      // no-op; eigentliche Implementierung steckt im bestehenden UI
++      // Wir sorgen lediglich dafür, dass diese Funktion nach jeder Aktion aufgerufen wird.
++    }
++  }catch(e){ warn("renderDayList error", e); }
++}
++
++// ------------------------
++// Ausgewähltes Datum aus dem UI holen (nutzt vorhandene getSelectedDate())
++// ------------------------
++function getSelectedDate(){
++  try{
++    if(typeof window.getSelectedDateImpl === "function"){
++      return window.getSelectedDateImpl();
++    }
++  }catch{}
++  // Fallback: Heutiges Datum
++  return new Date();
++}
++
++// ------------------------
++// Serverdaten holen & in UI schieben
++// ------------------------
++async function refreshFromServer(){
++  try{
++    CURRENT_USER = await apiFetch(API.me);
++    log("ME", CURRENT_USER);
++  }catch(e){
++    warn("ME failed:", e);
++  }
++
++  try{
++    ALL_APPTS = await apiFetch(API.appointments);
++    log("APPTS", ALL_APPTS);
++  }catch(e){
++    warn("APPTS failed:", e);
++    ALL_APPTS = [];
++  }
++
++  paintCalendarDots();
++  renderDayList();
++}
++
++// ------------------------
++// DOM Ready
++// ------------------------
++document.addEventListener("DOMContentLoaded", ()=>{
++  // ------------------------
++  // Titel-Edit / Delete Delegation
++  // ------------------------
++  const list = document.getElementById("dayList");
++  if(list){
++    list.addEventListener("change", async (ev)=>{
++      const el = ev.target;
++      if(!(el instanceof HTMLInputElement)) return;
++      if(!el.matches(".task-title-input")) return;
++
++      const id = el.getAttribute("data-id");
++      if(!id) return;
+ 
+-  const logoutBtn = document.getElementById("logoutBtn");
+-  if (logoutBtn){
+-    logoutBtn.addEventListener("click", ()=>{
+-      localStorage.removeItem("access");
+-      localStorage.removeItem("refresh");
+-      location.href="/login/";
+-    });
+-  }
++      try{
++        await apiFetch(API.appointments + id + "/", {
++          method: "PATCH",
++          body: JSON.stringify({title: el.value})
++        });
++        const idx = ALL_APPTS.findIndex(x=> String(x.id)===String(id));
++        if(idx>=0) ALL_APPTS[idx].title = el.value;
++
++        // ► Nach Update UI aktualisieren (dein Wunsch)
++        paintCalendarDots();
++        renderDayList();
++      }catch(err){
++        warn("PATCH failed:", err);
++        alert("Update fehlgeschlagen");
++        // auf alten Wert zurückspringen
++        const a = ALL_APPTS.find(x=> String(x.id)===String(id));
++        if(a) el.value = a.title;
++      }
++    });
+ 
+-  // Reagiere auf Neubau des Kalenders durch dein app.js
+-  const grid = document.getElementById("calendarGrid");
+-  if (grid){
+-    const mo = new MutationObserver(()=> { paintCalendarDots(); renderDayList(); });
+-    mo.observe(grid, {childList:true});
+-  }
++    list.addEventListener("click", async (ev)=>{
++      const btn = ev.target.closest?.(".delete");
++      if(!btn) return;
++
++      const id = btn.getAttribute("data-id");
++      if(!id) return;
+ 
+-  // Monatswechsel -> kurz warten, dann Punkte neu setzen
+-  const prev = document.getElementById("prevMonth");
+-  const next = document.getElementById("nextMonth");
+-  if(prev) prev.addEventListener("click", ()=> setTimeout(paintCalendarDots, 0));
+-  if(next) next.addEventListener("click", ()=> setTimeout(paintCalendarDots, 0));
++      if(!confirm("Eintrag löschen?")) return;
+ 
+-  // Klick auf Tag -> Liste neu
+-  if(grid){
+-    grid.addEventListener("click", (e)=>{
+-      const day = e.target.closest(".cal-day");
+-      if(day && !day.classList.contains("empty")) setTimeout(renderDayList, 0);
++      try{
++        await apiFetch(API.appointments + id + "/", {method:"DELETE"});
++        ALL_APPTS = ALL_APPTS.filter(x=> String(x.id)!==String(id));
++
++        // ► Nach Löschen UI aktualisieren (dein Wunsch)
++        paintCalendarDots();
++        renderDayList();
++      }catch(err){
++        warn("DELETE failed:", err);
++        // ► Kein störender Alert mehr (dein Wunsch)
++      }
+     });
+   }
+ 
++  // ------------------------
+   // Add-Form -> POST
++  // ------------------------
+   const addForm = document.getElementById("addForm");
+   if(addForm){
+     addForm.addEventListener("submit", async (e)=>{
+@@ -106,18 +218,22 @@
+       if(!title) return;
+ 
+       const base = getSelectedDate() || new Date();
+-      const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 10,0,0);
+-      const end   = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 11,0,0);
++      const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 10, 0, 0);
++      const end   = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 11, 0, 0);
+ 
+       try{
+         const created = await apiFetch(API.appointments, {
+           method:"POST",
+           body: JSON.stringify({title, note, start: toISO(start), end: toISO(end)})
+         });
++
+         // lokal anhängen, damit es sofort erscheint
+         ALL_APPTS.push(created);
++
++        // ► Nach Erstellen UI aktualisieren
+         paintCalendarDots();
+         renderDayList();
++
+         if(titleEl) titleEl.value = "";
+         if(noteEl) noteEl.value = "";
+       }catch(err){
+@@ -127,128 +243,8 @@
+     });
+   }
+ 
+-  // Initial load
++  // ------------------------
++  // Initiale Ladung
++  // ------------------------
+   refreshFromServer();
+ });
+-
+-// ------------------ SERVER <-> UI ------------------
+-async function refreshFromServer(){
+-  try{
+-    ALL_APPTS = await apiFetch(API.appointments);
+-    paintCalendarDots();
+-    renderDayList();
+-  }catch(err){
+-    warn("GET /appointments failed:", err.message);
+-    // UI nicht leeren, damit dein Frontend-Content sichtbar bleibt
+-  }
+-}
+-
+-function getViewYearMonth(){
+-  const mName = (document.getElementById("monthName")?.textContent||"").trim();
+-  const yTxt  = (document.getElementById("yearNum")?.textContent||"").trim();
+-  const y = parseInt(yTxt||"",10);
+-  const m = MONTHS_DE.indexOf(mName);
+-  return {year: isNaN(y)? new Date().getFullYear(): y, month: m<0? new Date().getMonth(): m};
+-}
+-
+-function getSelectedDate(){
+-  const grid = document.getElementById("calendarGrid");
+-  const sel = grid?.querySelector(".cal-day.selected");
+-  const {year, month} = getViewYearMonth();
+-  if(sel){
+-    const day = parseInt(sel.textContent,10);
+-    if(!isNaN(day)) return new Date(year, month, day);
+-  }
+-  const today = new Date();
+-  if(today.getFullYear()===year && today.getMonth()===month) return today;
+-  return new Date(year, month, 1);
+-}
+-
+-function groupByDay(list, y, m){
+-  const map = {};
+-  list.forEach(a=>{
+-    const d = new Date(a.start);
+-    if(d.getFullYear()===y && d.getMonth()===m){
+-      const dd = d.getDate();
+-      (map[dd] ||= []).push(a);
+-    }
+-  });
+-  return map;
+-}
+-
+-function paintCalendarDots(){
+-  const grid = document.getElementById("calendarGrid");
+-  if(!grid) return;
+-  const {year, month} = getViewYearMonth();
+-  const byDay = groupByDay(ALL_APPTS, year, month);
+-  // alte Dots weg
+-  grid.querySelectorAll(".cal-day .cal-dot").forEach(el=> el.remove());
+-  // neue setzen
+-  [...grid.querySelectorAll(".cal-day")].forEach(cell=>{
+-    if(cell.classList.contains("empty")) return;
+-    const day = parseInt(cell.textContent,10);
+-    if(!isNaN(day) && byDay[day]?.length){
+-      const dot = document.createElement("div");
+-      dot.className = "cal-dot";
+-      dot.title = `${byDay[day].length} Termin(e)`;
+-      cell.appendChild(dot);
+-    }
+-  });
+-}
+-
+-function renderDayList(){
+-  const list = document.getElementById("taskList");
+-  const label= document.getElementById("tasksDateLabel");
+-  if(!list) return;
+-
+-  const base = getSelectedDate();
+-  label && (label.textContent = base.toLocaleDateString("de-DE",{weekday:"long", day:"2-digit", month:"2-digit", year:"numeric"}));
+-
+-  const items = ALL_APPTS.filter(a=>{
+-    const d = new Date(a.start);
+-    return d.getFullYear()===base.getFullYear() && d.getMonth()===base.getMonth() && d.getDate()===base.getDate();
+-  }).sort((a,b)=> new Date(a.start)-new Date(b.start));
+-
+-  list.innerHTML = "";
+-  if(!items.length){
+-    const li = document.createElement("li");
+-    li.className = "task-row";
+-    li.innerHTML = `<span class="muted">Keine Einträge</span>`;
+-    list.appendChild(li);
+-    return;
+-  }
+-
+-  const tpl = document.getElementById("taskItemTemplate");
+-  items.forEach(a=>{
+-    const node = tpl.content.firstElementChild.cloneNode(true);
+-    const titleInput = node.querySelector(".task-title");
+-    titleInput.value = a.title;
+-
+-    const renameBtn = node.querySelector(".rename");
+-    if(renameBtn) renameBtn.addEventListener("click", ()=> titleInput.focus());
+-
+-    titleInput.addEventListener("change", async (ev)=>{
+-      try{
+-        await apiFetch(API.appointments + a.id + "/", {method:"PATCH", body: JSON.stringify({title: ev.target.value})});
+-        const idx = ALL_APPTS.findIndex(x=> x.id===a.id);
+-        if(idx>=0) ALL_APPTS[idx].title = ev.target.value;
+-      }catch(err){
+-        warn("PATCH failed:", err);
+-        alert("Update fehlgeschlagen");
+-        ev.target.value = a.title;
+-      }
+-    });
+-
+-    node.querySelector(".delete").addEventListener("click", async ()=>{
+-      if(!confirm("Eintrag löschen?")) return;
+-      try{
+-        await apiFetch(API.appointments + a.id + "/", {method:"DELETE"});
+-        ALL_APPTS = ALL_APPTS.filter(x=> x.id!==a.id);
+-        paintCalendarDots();
+-        renderDayList();
+-      }catch(err){ warn("DELETE failed:", err); alert("Löschen fehlgeschlagen"); }
+-    });
+-
+-    list.appendChild(node);
+-  });
+-}
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project version=\"4\">\n  <component name=\"AutoImportSettings\">\n    <option name=\"autoReloadType\" value=\"SELECTIVE\" />\n  </component>\n  <component name=\"ChangeListManager\">\n    <list default=\"true\" id=\"7932f786-5d88-4587-8fab-0afb61e3d7fe\" name=\"Changes\" comment=\"Backend logik vollständig, Funktionierende anbindung DB\">\n      <change beforePath=\"$PROJECT_DIR$/.idea/workspace.xml\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/.idea/workspace.xml\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/taskly-grid/taskly/api/models.py\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/taskly-grid/taskly/api/models.py\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/taskly-grid/taskly/api/serializers.py\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/taskly-grid/taskly/api/serializers.py\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/taskly-grid/taskly/api/views.py\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/taskly-grid/taskly/api/views.py\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/taskly-grid/taskly/requirements.txt\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/taskly-grid/taskly/requirements.txt\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/taskly-grid/taskly/static/app.js\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/taskly-grid/taskly/static/app.js\" afterDir=\"false\" />\n    </list>\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\n  </component>\n  <component name=\"DjangoConsoleOptions\" custom-start-script=\"import sys; print('Python %s on %s' % (sys.version, sys.platform))&#10;import django; print('Django %s' % django.get_version())&#10;sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;if 'setup' in dir(django): django.setup()&#10;import django_manage_shell; django_manage_shell.run(PROJECT_ROOT)\">\n    <option name=\"myCustomStartScript\" value=\"import sys; print('Python %s on %s' % (sys.version, sys.platform))&#10;import django; print('Django %s' % django.get_version())&#10;sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;if 'setup' in dir(django): django.setup()&#10;import django_manage_shell; django_manage_shell.run(PROJECT_ROOT)\" />\n  </component>\n  <component name=\"FileTemplateManagerImpl\">\n    <option name=\"RECENT_TEMPLATES\">\n      <list>\n        <option value=\"Python Script\" />\n      </list>\n    </option>\n  </component>\n  <component name=\"Git.Settings\">\n    <option name=\"RECENT_GIT_ROOT_PATH\" value=\"$PROJECT_DIR$\" />\n  </component>\n  <component name=\"GitHubPullRequestSearchHistory\">{\n  &quot;lastFilter&quot;: {\n    &quot;state&quot;: &quot;OPEN&quot;,\n    &quot;assignee&quot;: &quot;Balabe07&quot;\n  }\n}</component>\n  <component name=\"GithubPullRequestsUISettings\">{\n  &quot;selectedUrlAndAccountId&quot;: {\n    &quot;url&quot;: &quot;https://github.com/Pusher63/Projekt1-repo.git&quot;,\n    &quot;accountId&quot;: &quot;3c3270f3-d878-4873-a6fe-f422e6126c22&quot;\n  }\n}</component>\n  <component name=\"ProjectColorInfo\">{\n  &quot;associatedIndex&quot;: 4\n}</component>\n  <component name=\"ProjectId\" id=\"32SRrW2jlf3VME8OTGeRi5B6Pkm\" />\n  <component name=\"ProjectViewState\">\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\n    <option name=\"showLibraryContents\" value=\"true\" />\n  </component>\n  <component name=\"PropertiesComponent\"><![CDATA[{\n  \"keyToString\": {\n    \"ModuleVcsDetector.initialDetectionPerformed\": \"true\",\n    \"RunOnceActivity.OpenDjangoStructureViewOnStart\": \"true\",\n    \"RunOnceActivity.ShowReadmeOnStart\": \"true\",\n    \"RunOnceActivity.git.unshallow\": \"true\",\n    \"git-widget-placeholder\": \"main\",\n    \"junie.onboarding.icon.badge.shown\": \"true\",\n    \"last_opened_file_path\": \"/Users/bartu/Downloads/Projekt1\",\n    \"node.js.detected.package.eslint\": \"true\",\n    \"node.js.detected.package.tslint\": \"true\",\n    \"node.js.selected.package.eslint\": \"(autodetect)\",\n    \"node.js.selected.package.tslint\": \"(autodetect)\",\n    \"nodejs_package_manager_path\": \"npm\",\n    \"settings.editor.selected.configurable\": \"com.intellij.python.django.customization.DjangoModulesConfigurable\",\n    \"vue.rearranger.settings.migration\": \"true\"\n  }\n}]]></component>\n  <component name=\"RecentsManager\">\n    <key name=\"MoveFile.RECENT_KEYS\">\n      <recent name=\"$PROJECT_DIR$/taskly-grid/taskly/static\" />\n      <recent name=\"$PROJECT_DIR$/taskly-grid/taskly/templates\" />\n    </key>\n  </component>\n  <component name=\"RunManager\">\n    <configuration name=\"Projekt1NEU\" type=\"Python.DjangoServer\" factoryName=\"Django server\">\n      <module name=\"Projekt1NEU\" />\n      <option name=\"ENV_FILES\" value=\"\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"\" />\n      <option name=\"IS_MODULE_SDK\" value=\"false\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"launchJavascriptDebuger\" value=\"false\" />\n      <option name=\"port\" value=\"8000\" />\n      <option name=\"host\" value=\"\" />\n      <option name=\"additionalOptions\" value=\"\" />\n      <option name=\"browserUrl\" value=\"\" />\n      <option name=\"runTestServer\" value=\"false\" />\n      <option name=\"runNoReload\" value=\"false\" />\n      <option name=\"useCustomRunCommand\" value=\"false\" />\n      <option name=\"customRunCommand\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n  </component>\n  <component name=\"SharedIndexes\">\n    <attachedChunks>\n      <set>\n        <option value=\"bundled-js-predefined-d6986cc7102b-f27c65a3e318-JavaScript-PY-251.23774.444\" />\n        <option value=\"bundled-python-sdk-890ed5b35930-d9c5bdb153f4-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.23774.444\" />\n      </set>\n    </attachedChunks>\n  </component>\n  <component name=\"TaskManager\">\n    <task active=\"true\" id=\"Default\" summary=\"Default task\">\n      <changelist id=\"7932f786-5d88-4587-8fab-0afb61e3d7fe\" name=\"Changes\" comment=\"\" />\n      <created>1757412185259</created>\n      <option name=\"number\" value=\"Default\" />\n      <option name=\"presentableId\" value=\"Default\" />\n      <updated>1757412185259</updated>\n      <workItem from=\"1757412186289\" duration=\"220000\" />\n      <workItem from=\"1758460496958\" duration=\"85000\" />\n      <workItem from=\"1758460584300\" duration=\"30389000\" />\n    </task>\n    <task id=\"LOCAL-00001\" summary=\"Django anbindung mit Frontend, DB Konfiguriert mithilfe von MAMP\">\n      <option name=\"closed\" value=\"true\" />\n      <created>1758463707627</created>\n      <option name=\"number\" value=\"00001\" />\n      <option name=\"presentableId\" value=\"LOCAL-00001\" />\n      <option name=\"project\" value=\"LOCAL\" />\n      <updated>1758463707627</updated>\n    </task>\n    <task id=\"LOCAL-00002\" summary=\"Backend logik vollständig, Funktionierende anbindung DB\">\n      <option name=\"closed\" value=\"true\" />\n      <created>1758558050495</created>\n      <option name=\"number\" value=\"00002\" />\n      <option name=\"presentableId\" value=\"LOCAL-00002\" />\n      <option name=\"project\" value=\"LOCAL\" />\n      <updated>1758558050495</updated>\n    </task>\n    <option name=\"localTasksCounter\" value=\"3\" />\n    <servers />\n  </component>\n  <component name=\"TypeScriptGeneratedFilesManager\">\n    <option name=\"version\" value=\"3\" />\n  </component>\n  <component name=\"Vcs.Log.Tabs.Properties\">\n    <option name=\"TAB_STATES\">\n      <map>\n        <entry key=\"MAIN\">\n          <value>\n            <State>\n              <option name=\"FILTERS\">\n                <map>\n                  <entry key=\"branch\">\n                    <value>\n                      <list>\n                        <option value=\"origin/main\" />\n                      </list>\n                    </value>\n                  </entry>\n                </map>\n              </option>\n            </State>\n          </value>\n        </entry>\n      </map>\n    </option>\n  </component>\n  <component name=\"VcsManagerConfiguration\">\n    <MESSAGE value=\"Django anbindung mit Frontend, DB Konfiguriert mithilfe von MAMP\" />\n    <MESSAGE value=\"Backend logik vollständig, Funktionierende anbindung DB\" />\n    <option name=\"LAST_COMMIT_MESSAGE\" value=\"Backend logik vollständig, Funktionierende anbindung DB\" />\n  </component>\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	(revision c96b14b01631f60ba13d3524e8701eee63221688)
++++ b/.idea/workspace.xml	(date 1758910497660)
+@@ -5,12 +5,11 @@
+   </component>
+   <component name="ChangeListManager">
+     <list default="true" id="7932f786-5d88-4587-8fab-0afb61e3d7fe" name="Changes" comment="Backend logik vollständig, Funktionierende anbindung DB">
++      <change beforePath="$PROJECT_DIR$/.idea/Projekt1NEU.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Projekt1NEU.iml" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/models.py" afterDir="false" />
+-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/serializers.py" afterDir="false" />
+-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/api/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/api/views.py" afterDir="false" />
+-      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/requirements.txt" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/static/api-sync.js" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/api-sync.js" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/static/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/static/app.js" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/taskly-grid/taskly/tasklyapi/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/taskly-grid/taskly/tasklyapi/urls.py" afterDir="false" />
+     </list>
+     <option name="SHOW_DIALOG" value="false" />
+     <option name="HIGHLIGHT_CONFLICTS" value="true" />
+@@ -52,10 +51,12 @@
+   </component>
+   <component name="PropertiesComponent"><![CDATA[{
+   "keyToString": {
++    "Django Server.Projekt1NEU.executor": "Run",
+     "ModuleVcsDetector.initialDetectionPerformed": "true",
+     "RunOnceActivity.OpenDjangoStructureViewOnStart": "true",
+     "RunOnceActivity.ShowReadmeOnStart": "true",
+     "RunOnceActivity.git.unshallow": "true",
++    "django.template.preview.state": "SHOW_EDITOR",
+     "git-widget-placeholder": "main",
+     "junie.onboarding.icon.badge.shown": "true",
+     "last_opened_file_path": "/Users/bartu/Downloads/Projekt1",
+@@ -118,6 +119,9 @@
+       <workItem from="1757412186289" duration="220000" />
+       <workItem from="1758460496958" duration="85000" />
+       <workItem from="1758460584300" duration="30389000" />
++      <workItem from="1758817323556" duration="179000" />
++      <workItem from="1758817507031" duration="447000" />
++      <workItem from="1758906598757" duration="3891000" />
+     </task>
+     <task id="LOCAL-00001" summary="Django anbindung mit Frontend, DB Konfiguriert mithilfe von MAMP">
+       <option name="closed" value="true" />
+@@ -152,7 +156,7 @@
+                   <entry key="branch">
+                     <value>
+                       <list>
+-                        <option value="origin/main" />
++                        <option value="main" />
+                       </list>
+                     </value>
+                   </entry>
+Index: taskly-grid/taskly/tasklyapi/urls.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from django.contrib import admin\nfrom django.urls import path, include\nfrom rest_framework.routers import DefaultRouter\nfrom api.views import (\n    HomePage, LoginPage, RegisterPage,\n    health, me, RegisterView, AppointmentViewSet\n)\nfrom rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView\n\nrouter = DefaultRouter()\nrouter.register(r\"appointments\", AppointmentViewSet, basename=\"appointment\")\n\nurlpatterns = [\n    # Frontend\n    path(\"\", HomePage.as_view(), name=\"home\"),\n    path(\"login/\", LoginPage.as_view(), name=\"login\"),\n    path(\"register/\", RegisterPage.as_view(), name=\"register_page\"),\n\n    # Admin\n    path(\"admin/\", admin.site.urls),\n\n    # API\n    path(\"api/health/\", health),\n    path(\"api/me/\", me),\n    path(\"api/auth/register/\", RegisterView.as_view(), name=\"api_register\"),\n    path(\"api/auth/login/\", TokenObtainPairView.as_view(), name=\"token_obtain_pair\"),\n    path(\"api/auth/refresh/\", TokenRefreshView.as_view(), name=\"token_refresh\"),\n    path(\"api/\", include(router.urls)),\n]\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/taskly-grid/taskly/tasklyapi/urls.py b/taskly-grid/taskly/tasklyapi/urls.py
+--- a/taskly-grid/taskly/tasklyapi/urls.py	(revision c96b14b01631f60ba13d3524e8701eee63221688)
++++ b/taskly-grid/taskly/tasklyapi/urls.py	(date 1758909252498)
+@@ -13,8 +13,8 @@
+ urlpatterns = [
+     # Frontend
+     path("", HomePage.as_view(), name="home"),
+-    path("login/", LoginPage.as_view(), name="login"),
+-    path("register/", RegisterPage.as_view(), name="register_page"),
++    path("login.html/", LoginPage.as_view(), name="login"),
++    path("register.html/", RegisterPage.as_view(), name="register_page"),
+ 
+     # Admin
+     path("admin/", admin.site.urls),
