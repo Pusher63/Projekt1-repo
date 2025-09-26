@@ -3,7 +3,7 @@
    TASKLY – Aufgabenverwaltung (Server, tagesstrikt, Date-Guard)
    - Einzige Datum-Quelle: window.TasklyApp.selectedDate
    - Jeder GET /api/appointments/?date=... wird auf den gewählten Tag korrigiert
-   - Keine Vermischung mit "heute" nach POST oder Klick
+   - Löschen ohne irreführendes Alert; nach jedem Delete wird der Tag neu geladen
    ========================================================= */
 
 (function () {
@@ -46,7 +46,6 @@
   const _fetch = window.fetch.bind(window);
   window.fetch = function(input, init) {
     try {
-      // Nur GETs auf /api/appointments/ mit ?date= korrigieren
       let url = (typeof input === "string") ? input : (input && input.url);
       if (url && url.includes("/api/appointments/")) {
         const u = new URL(url, location.origin);
@@ -130,7 +129,6 @@
     const key = window.TasklyApp.day;
     const res = await apiFetch(`${API.tasks}?date=${encodeURIComponent(key)}`);
     let items = normalizeItems(res);
-    // Sicherheit: exakt auf lokalen Tag filtern
     items = items.filter(it => keyFromISO(it.start) === key);
 
     tasksOfSelectedDay = items.map(it => ({
@@ -170,7 +168,7 @@
       })
     });
 
-    await reloadSelectedDay(); // ← holt EXAKT den gewählten Tag (durch Date-Guard garantiert)
+    await reloadSelectedDay(); // exakt gleicher Tag
   }
 
   async function updateTaskOnServer(id, patch) {
@@ -251,10 +249,19 @@
       });
 
       const btnDelete = $(".delete", li);
-      btnDelete.addEventListener("click", async () => {
+      btnDelete.addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        if (btnDelete.dataset.busy === "1") return;
+
         if (!confirm("Aufgabe wirklich löschen?")) return;
-        try { await deleteTaskOnServer(t.id); }
-        catch { alert("Löschen Erfolgreich"); }
+        btnDelete.dataset.busy = "1";
+
+        // kein try/catch → kein falsches Alert; der Reload passiert im Delete selbst
+        await deleteTaskOnServer(t.id).finally(() => {
+          btnDelete.dataset.busy = "0";
+        });
       });
 
       taskListEl.appendChild(li);
@@ -298,12 +305,9 @@
       if (isSameLocalDay(d, window.TasklyApp.selectedDate)) cell.classList.add("selected");
 
       cell.addEventListener("click", async () => {
-        // 1) Datum zentral setzen
         window.TasklyApp.selectedDate = d;
-        // 2) Daten für diesen Tag holen (Date-Guard sorgt, dass ?date korrekt ist)
         try { await fetchTasksForSelectedDate(); }
         catch (e) { console.warn("Konnte Tagesdaten nicht laden:", e?.message || e); tasksOfSelectedDay = []; }
-        // 3) UI
         renderCalendar();
         renderTasks();
         updateStreak();
@@ -334,7 +338,7 @@
     renderCalendar();
   });
 
-  // Submit in Capture-Phase, um andere evtl. Listener (ältere Skripte) auszubremsen
+  // Submit in Capture-Phase, verhindert Nebenlistener
   addForm.addEventListener("submit", async (e) => {
     e.stopImmediatePropagation();
     e.preventDefault();
@@ -354,7 +358,7 @@
     } catch (err) {
       alert("Speichern fehlgeschlagen:\n" + (err?.message || err));
     }
-  }, true); // << capture=true
+  }, true);
 
   taskFilterEl.addEventListener("change", renderTasks);
   taskPriorityFilterEl.addEventListener("change", renderTasks);
